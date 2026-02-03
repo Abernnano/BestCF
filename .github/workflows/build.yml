@@ -100,9 +100,9 @@ jobs:
         shell: bash
         run: |
           cd ./bestcf/ || exit 1
-          # 使用 Windows/Git Bash 兼容的 find 命令
-          find . -maxdepth 5 -name "*.txt" | sed 's|^\./||' | while read file; do
-            curl -s --ssl-no-revoke "https://purge.jsdelivr.net/gh/${{ github.repository }}@bestcf/${file}"
+          # 使用绝对路径 /usr/bin/find 避开 Windows 自带的 find.exe 冲突
+          /usr/bin/find . -maxdepth 5 -name "*.txt" | sed 's|^\./||' | while read file; do
+            curl -sSL --ssl-no-revoke "https://purge.jsdelivr.net/gh/${{ github.repository }}@bestcf/${file}"
           done
 
       - name: Delete old workflow runs
