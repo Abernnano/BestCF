@@ -5,7 +5,7 @@ import re
 
 # --- 配置区 ---
 # 待处理的原始 IP 文件列表
-INPUT_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt", "proxy-ip.txt"]
+INPUT_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]
 BASE_DIR = "./bestcf"
 # 汇总文件名
 SUMMARY_FILE = "all-countries-ip.txt"
