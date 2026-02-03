@@ -5,15 +5,15 @@ import sys
 import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# 强制设置输出编码为 UTF-8，防止 Windows GBK 报错
+# 强制设置输出编码为 UTF-8，防止 Windows 环境下输出非 ASCII 字符导致崩溃
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # --- 配置区 ---
-# 参与国家码分类的文件（严格排除 proxy-ip.txt）
+# 参与分类的文件
 CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]
 BASE_DIR = "./bestcf"
 SUMMARY_FILE = "all-countries-ip.txt"
-MAX_WORKERS = 30 
+MAX_WORKERS = 40 
 
 def get_real_loc(ip):
     """
@@ -21,8 +21,8 @@ def get_real_loc(ip):
     """
     clean_ip = ip.replace('[', '').replace(']', '')
     try:
-        # 探测当前网络环境下的实际节点
-        # 使用 verify=False 是为了防止本地网络环境导致的 SSL 证书吊销检查错误
+        # 使用直连探测，确保反映本地真实的宽带路由
+        # 注意：Clash 规则中应将 cp.cloudflare.com 设为 DIRECT
         resp = requests.get(f"http://{clean_ip}/cdn-cgi/trace", timeout=2)
         if resp.status_code == 200:
             loc_match = re.search(r'loc=([A-Z]{2})', resp.text)
@@ -37,30 +37,39 @@ def process_file(filename, summary_set):
     if not os.path.exists(file_path):
         return
 
-    # 去除了会导致 GBK 报错的表情符号
-    print(f"[*] Processing: {filename}")
+    print(f"[*] Processing and Tagging: {filename}")
     with open(file_path, 'r', encoding='utf-8') as f:
         lines = [l.strip() for l in f.readlines() if l.strip()]
 
     categorized_data = {}
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_to_line = {executor.submit(get_real_loc, line.split('#')[0].strip()): line for line in lines}
+        # 解析每一行，提取 IP 和 原始注释
+        future_to_info = {}
+        for line in lines:
+            parts = line.split('#')
+            ip = parts[0].strip()
+            comment = parts[1].strip() if len(parts) > 1 else ""
+            future = executor.submit(get_real_loc, ip)
+            future_to_info[future] = (ip, comment)
         
-        for future in as_completed(future_to_line):
-            original_line = future_to_line[future]
+        for future in as_completed(future_to_info):
+            ip, old_comment = future_to_info[future]
             loc = future.result()
             
             if loc:
+                # 核心功能：在 # 后标注国家码
+                # 格式示例：1.1.1.1#GB_CMCC-IPv4_CMLiu_1
+                new_line = f"{ip}#{loc}_{old_comment}" if old_comment else f"{ip}#{loc}"
+                
                 if loc not in categorized_data:
                     categorized_data[loc] = []
-                categorized_data[loc].append(original_line)
+                categorized_data[loc].append(new_line)
                 
-                # 汇总格式: IP#国家码
-                ip_part = original_line.split('#')[0].strip()
-                summary_set.add(f"{ip_part}#{loc}")
+                # 存入汇总 set
+                summary_set.add(new_line)
 
-    # 写入分类
+    # 写入分类文件夹
     for loc, items in categorized_data.items():
         country_dir = os.path.join(BASE_DIR, loc)
         os.makedirs(country_dir, exist_ok=True)
@@ -73,15 +82,14 @@ def main():
     
     summary_ips = set()
 
-    # 只处理分类列表中的文件，proxy-ip.txt 不会参与
     for f in CLASSIFY_FILES:
         process_file(f, summary_ips)
 
-    # 生成汇总全国家文件
+    # 生成全国家汇总文件
     if summary_ips:
         with open(os.path.join(BASE_DIR, SUMMARY_FILE), 'w', encoding='utf-8') as f:
             f.write('\n'.join(sorted(list(summary_ips))) + '\n')
-        print("[+] Summary file generated successfully.")
+        print("[+] All files categorized and tagged with country codes.")
 
 if __name__ == "__main__":
     main()
