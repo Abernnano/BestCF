@@ -5,7 +5,7 @@ import sys
 import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# 彻底解决 Windows 控制台编码问题
+# 1. 核心修复：强制 Windows 控制台使用 UTF-8 编码，否则无法显示或写入国旗 Emoji
 if sys.platform.startswith('win'):
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -15,7 +15,7 @@ BASE_DIR = "./bestcf"
 SUMMARY_FILE = "all-countries-ip.txt"
 MAX_WORKERS = 50 
 
-# 常见的 Cloudflare 数据中心(Colo)到国家码的映射表
+# Cloudflare 数据中心(Colo)到国家码的映射表
 COLO_MAP = {
     "HKG": "HK", "SIN": "SG", "NRT": "JP", "KIX": "JP", "ICN": "KR",
     "TPE": "TW", "LAX": "US", "SJC": "US", "SEA": "US", "SFO": "US",
@@ -24,13 +24,21 @@ COLO_MAP = {
 
 requests.packages.urllib3.disable_warnings()
 
+def get_flag(country_code):
+    """
+    将国家码(如 HK)转换为国旗 Emoji
+    """
+    if not country_code or len(country_code) != 2:
+        return ""
+    # 通过 Unicode 偏移量计算国旗 Emoji
+    return "".join(chr(127397 + ord(c)) for c in country_code.upper())
+
 def get_real_info(ip):
     """
-    通过探测获取数据中心代码(colo)，从而识别全球位置
+    获取数据中心代码并返回映射的国家码
     """
     clean_ip = ip.replace('[', '').replace(']', '')
     try:
-        # 强制直连探测，获取该 IP 在当前网络下的落地数据中心
         resp = requests.get(
             f"http://{clean_ip}/cdn-cgi/trace", 
             timeout=2, 
@@ -38,13 +46,10 @@ def get_real_info(ip):
             proxies={'http': None, 'https': None} 
         )
         if resp.status_code == 200:
-            # 提取数据中心代码 (例如 colo=HKG)
             colo_match = re.search(r'colo=([A-Z]{3})', resp.text)
             if colo_match:
                 colo = colo_match.group(1)
-                # 转换国家码，如果不在映射表中则直接显示三字码
-                country = COLO_MAP.get(colo, colo)
-                return country
+                return COLO_MAP.get(colo, colo)
     except:
         pass
     return None
@@ -54,59 +59,52 @@ def process_file(filename, summary_set):
     if not os.path.exists(file_path):
         return
 
-    print(f"[*] Analyzing Global Routes: {filename}")
+    print(f"[*] Analyzing Routes with Flags: {filename}")
     with open(file_path, 'r', encoding='utf-8') as f:
         lines = [l.strip() for l in f.readlines() if l.strip()]
 
     categorized_data = {}
-    success_count = 0
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_to_info = {}
-        for line in lines:
-            ip = line.split('#')[0].strip()
-            comment = line.split('#')[1].strip() if '#' in line else ""
-            future = executor.submit(get_real_info, ip)
-            future_to_info[future] = (ip, comment)
+        future_to_info = {executor.submit(get_real_info, line.split('#')[0].strip()): line for line in lines}
         
         for future in as_completed(future_to_info):
-            ip, old_comment = future_to_info[future]
+            original_line = future_to_info[future]
             country_tag = future.result()
             
             if country_tag:
-                # 标注格式：IP#国家码_原注释
-                new_line = f"{ip}#{country_tag}_{old_comment}" if old_comment else f"{ip}#{country_tag}"
+                ip = original_line.split('#')[0].strip()
+                old_comment = original_line.split('#')[1].strip() if '#' in original_line else ""
+                
+                # 获取国旗 (如果是三字码则不显示国旗)
+                flag = get_flag(country_tag) if len(country_tag) == 2 else ""
+                
+                # 标注格式：IP#国旗国家码_原注释
+                new_line = f"{ip}#{flag}{country_tag}_{old_comment}" if old_comment else f"{ip}#{flag}{country_tag}"
                 
                 if country_tag not in categorized_data:
                     categorized_data[country_tag] = []
                 categorized_data[country_tag].append(new_line)
-                
                 summary_set.add(new_line)
-                success_count += 1
 
     for tag, items in categorized_data.items():
         country_dir = os.path.join(BASE_DIR, tag)
         os.makedirs(country_dir, exist_ok=True)
         with open(os.path.join(country_dir, filename), 'w', encoding='utf-8') as f:
             f.write('\n'.join(items) + '\n')
-    
-    print(f"    [+] {filename} Done: {success_count} Global IPs identified.")
 
 def main():
     if not os.path.exists(BASE_DIR):
         os.makedirs(BASE_DIR)
     
     summary_ips = set()
-
-    # 严格仅处理分类列表，排除 proxy-ip.txt
     for f in CLASSIFY_FILES:
         process_file(f, summary_ips)
 
-    summary_path = os.path.join(BASE_DIR, SUMMARY_FILE)
     if summary_ips:
-        with open(summary_path, 'w', encoding='utf-8') as f:
+        with open(os.path.join(BASE_DIR, SUMMARY_FILE), 'w', encoding='utf-8') as f:
             f.write('\n'.join(sorted(list(summary_ips))) + '\n')
-        print(f"[SUCCESS] Global summary generated at: {summary_path}")
+        print(f"[SUCCESS] Global summary with flags generated.")
 
 if __name__ == "__main__":
     main()
