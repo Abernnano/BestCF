@@ -78,6 +78,8 @@ jobs:
           curl -sSL --ssl-no-revoke "https://ipdb.api.030101.xyz/?type=bestproxy" | head -n 10 | awk '{print $0 "#Proxy-IPv4_IPDB_" NR}' > ./bestcf/proxy-ip.txt
 
       - name: Auto-Country Classification
+        env:
+          PYTHONIOENCODING: utf-8 # 强制 Python 在 Windows 上使用 UTF-8 输出
         # 探测环节不强制 bash，因为 Python 脚本内部有自己的请求逻辑
         run: python filter.py
 
