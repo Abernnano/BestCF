@@ -27,8 +27,10 @@ jobs:
 
       - name: Install dependencies
         run: pip install requests
-
+        # 关键：强制 Windows 使用 Bash 运行这一步
+        shell: bash
       - name: Generate bestcf `Domain`
+      
         run: |
           echo "update_version=$(date -d '+8 hours' +%Y-%m-%d)" >> ${GITHUB_ENV}
           mkdir -p ./tmp/ ./bestcf/
