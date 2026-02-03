@@ -1,3 +1,94 @@
+# Cloudflare 优选全球 IP 自动化系统
+
+本项目基于DustinWin/BestCF项目，通过 GitHub Actions 自托管运行器（Windows），利用本地宽带环境实现对 Cloudflare 边缘节点的实时抓取、全球数据中心（Colo）识别及分类标注。
+
+## 🌟 项目特性
+
+* **本地化探测**：利用自托管运行器绕过 GitHub 官方服务器的路由黑盒，获取最真实的本地连接结果。
+* **全球机房识别**：通过解析 `colo` 代码识别 IP 实际落地的数据中心（如 HKG、SIN、LAX），而非客户端位置。
+* **全自动分流**：适配 Windows 环境下的代理分流逻辑，确保代码拉取走代理，探测过程走直连。
+* **多线路支持**：自动分类 移动 (CMCC)、联通 (CUCC)、电信 (CTCC) 及全网优选 IP。
+
+---
+
+## 🛠️ 第一部分：本地环境配置 (Windows)
+
+在你的自托管运行器机器上，需完成以下基础设置：
+
+### 1. Git 工具链与环境变量
+
+安装 Git for Windows（推荐路径 `D:\APP\Git`），并将以下路径手动添加到系统的 **Path** 环境变量中：
+
+* `D:\APP\Git\bin`
+* `D:\APP\Git\usr\bin`（此路径包含 `grep`, `awk` 等关键 Linux 工具）
+
+> **注意**：配置完成后必须关闭并重新启动 `./run.cmd` 窗口，环境变量才能生效。
+
+### 2. 安装 `jq` 工具
+
+1. 下载 [jq-windows-amd64.exe](https://www.google.com/search?q=https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-windows-amd64.exe) 并重命名为 `jq.exe`。
+2. 移动至 `D:\APP\Git\usr\bin` 目录下。
+
+### 3. Python 环境
+
+1. 确保本地已安装 Python 3.x。
+2. 执行依赖安装：`pip install requests`。
+
+---
+
+## 🌐 第二部分：网络分流逻辑 (Clash Verge)
+
+由于身处中国大陆，为了让运行器既能通过代理拉取代码，又能通过直连探测真实路由，需在 **Clash Verge** 的 **全局扩展覆盖配置 (Merge)** 中添加以下规则：
+
+```yaml
+prepend-rules:
+  # 确保 GitHub 资源走代理拉取
+  - DOMAIN-SUFFIX,github.com,Proxy
+  - DOMAIN-SUFFIX,githubusercontent.com,Proxy
+  - DOMAIN,objects.githubusercontent.com,Proxy
+  - DOMAIN,codeload.github.com,Proxy
+
+  # 强制 Cloudflare 探测接口直连，获取真实落地机房
+  - DOMAIN,cp.cloudflare.com,DIRECT
+  - IP-CIDR,1.1.1.1/32,DIRECT
+  - IP-CIDR,104.16.0.0/12,DIRECT
+
+```
+
+---
+
+## 🚀 第三部分：线上配置与自动化流程
+
+### 1. 工作流配置 (`.github/workflows/build.yml`)
+
+在工作流中，需特别注意 Windows 环境下的命令兼容性：
+
+* **强制 Bash 环境**：所有包含 `curl`, `awk` 等命令的步骤必须指定 `shell: bash`，以避开 PowerShell 的别名冲突。
+* **SSL 豁免**：所有 `curl` 请求需携带 `--ssl-no-revoke` 参数，解决 Windows 下证书吊销服务器无法连接导致的报错。
+* **路径隔离**：使用 `/usr/bin/sort` 明确调用 Linux 版排序工具，避免与 Windows 系统自带的 `sort.exe` 冲突。
+
+### 2. 探测与分类逻辑 (`filter.py`)
+
+脚本执行以下核心操作：
+
+1. **排除特定文件**：严格排除 `proxy-ip.txt`，仅对指定的优选列表进行分类。
+2. **全球机房映射**：通过 `COLO_MAP` 将三字码（如 `HKG`）映射为国家码（如 `HK`）。
+3. **格式化输出**：在 `#` 符号后标注国家码，格式为 `IP#国家码_来源标签`。
+4. **编码保护**：强制使用 `UTF-8` 输出，防止 Windows 控制台因 GBK 编码无法处理 Emoji 或特殊字符而崩溃。
+
+---
+
+## 📝 第四部分：维护建议
+
+### 常见问题排查 (FAQ)
+
+* **识别结果全是 CN？** 请检查 Clash 规则中 `cp.cloudflare.com` 是否真的走了 `DIRECT`。
+* **脚本报错 `jq: command not found`？** 确认 `jq.exe` 已放入 `usr/bin` 且已彻底重启运行器进程。
+* **Git 推送失败？** 请确保 `GITHUB_TOKEN` 具有 `contents: write` 权限，或者在本地配置 SSH 密钥。
+
+---
+
+
 # Cloudflare 优选域名和 IP
 ## 数据源
 forked from DustinWin/BestCF
@@ -9,97 +100,3 @@ forked from DustinWin/BestCF
 5. **ctcc-ip.txt** 源采用 [CMLiussss（电信优选 IP）](https://cf.090227.xyz/ct)（IPv4）、[VPS789（电信优选 IP）](https://vps789.com/cfip/)（IPv4）、[CloudFlareYes（电信优选 IP）](https://stock.hostmonit.com/CloudFlareYes)（IPv4 & IPv6）和[微测网（电信优选 IP）](https://www.wetest.vip/page/cloudflare/address_v4.html)（IPv4 & IPv6）组合
 6. **bestcf-ip.txt** 源采用 [VPS789（CF 优选 IP）](https://vps789.com/cfip/)（IPv4）、[CloudflareSpeedTest（Cloudflare 优选 IP 测速数据）](https://ip.164746.xyz)（IPv4）、[IPDB（CF 优选官方 IP 服务）](https://ipdb.030101.xyz/bestcfv4/)（IPv4 & IPv6）组合
 7. **proxy-ip.txt**（反代 IP）[IPDB（CF 优选官方反代 IP 服务）](https://ipdb.030101.xyz/bestproxy/)（IPv4）组合
-
----
-
-# Cloudflare 优选 IP 库 (本地路由优化版)
-
-本项目是基于 [DustinWin/BestCF](https://github.com/DustinWin/BestCF) 的二次开发版本。通过部署在 **英国 (GB)** 的自托管运行器进行实时探测，确保生成的分类结果完全符合真实的本地网络路由。
-
-### 🌟 核心突破：解决 Anycast 误判
-
-传统的 GitHub Actions 运行在美区服务器，由于 Cloudflare 的 Anycast 技术，会导致大部分 IP 被识别为 `US`。本项目通过本地运行器访问 `cdn-cgi/trace` 接口，能够识别出流量实际落地的节点（如 `GB`, `HK`, `JP`），为特定地区用户提供最精准的优选结果。
-
-### 📂 分支与目录说明
-
-* **`main` 分支**：存放自动化脚本与过滤逻辑。
-* **`bestcf` 分支**：存放优选结果。
-* **`all-countries-ip.txt`**：全球 IP 汇总，格式为 `IP#国家码`。
-* **`GB/`**, **`HK/`**, **`SG/`**...：按实际路由国家分类的运营商优选列表。
-* **`proxy-ip.txt`**：原始反代 IP，不参与国家分类以保持纯净。
-
-
-
-### 🔗 快速订阅链接 (以英国区域为例)
-
-| 节点类型 | GitHub Raw 链接 |
-| --- | --- |
-| **全国家汇总 (推荐)** | `https://raw.githubusercontent.com/Abernnano/BestCF/bestcf/all-countries-ip.txt` |
-| **移动-英国 (GB)** | `https://raw.githubusercontent.com/Abernnano/BestCF/bestcf/GB/cmcc-ip.txt` |
-| **联通-英国 (GB)** | `https://raw.githubusercontent.com/Abernnano/BestCF/bestcf/GB/cucc-ip.txt` |
-| **电信-英国 (GB)** | `https://raw.githubusercontent.com/Abernnano/BestCF/bestcf/GB/ctcc-ip.txt` |
-
----
-
-## 第二部分：完整的本地自托管运行器教程
-
-如果你需要在其他机器上复现，或需要重新配置，请参考以下指南。
-
-### 1. 环境准备 (Windows)
-
-* **Python**: 安装 Python 3.10+，并确保已勾选 `Add Python to PATH`。
-* **Git**: 安装 Git for Windows，用于将结果推送至仓库。
-* **依赖库**: 打开 PowerShell 执行：
-```powershell
-pip install requests
-
-```
-
-
-
-### 2. 部署 Runner (自托管运行器)
-
-1. **项目设置**: 进入 GitHub 仓库 `Settings` -> `Actions` -> `Runners` -> `New self-hosted runner`。
-2. **下载与解压**: 在 `E:\actions-runner` (或你自定义的路径) 执行 GitHub 提供的下载与解压命令。
-3. **关键配置**: 执行 `./config.cmd`。
-* **Runner Group**: 直接按 **Enter**。
-* **Runner Name**: 自定义（如 `UK-Home-Server`）。
-* **Labels**: 直接按 **Enter**，确保拥有 `self-hosted` 标签。
-
-
-4. **运行**: 执行 `./run.cmd`。
-
-### 3. 修改 Workflow 配置文件
-
-确保项目中的 `.github/workflows/build.yml` 的 `runs-on` 字段已设为 `self-hosted`：
-
-```yaml
-jobs:
-  build:
-    runs-on: self-hosted # 关键：让任务在你的英国本地机器运行
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      # 后续执行 curl 抓取与 python filter.py 逻辑
-
-```
-
-### 4. 长期稳定运行方案
-
-为了避免关闭 PowerShell 窗口导致运行器失效，建议将其安装为 Windows 服务：
-
-1. 在 `actions-runner` 文件夹下，以管理员权限打开 PowerShell。
-2. 停止当前运行（Ctrl+C）。
-3. 执行：`./svc.sh install`。
-4. 执行：`./svc.sh start`。
-现在，运行器将在后台静默运行，即便重启电脑也会自动启动。
-
----
-
-## 第三部分：核心逻辑维护 (filter.py)
-
-你的 `filter.py` 脚本目前具备以下高级逻辑：
-
-1. **实时探测**: 优先使用本地网络访问 `trace` 接口，获取最真实的 `loc` 国家码。
-2. **严格排除**: 识别并跳过 `proxy-ip.txt`，确保反代 IP 不被错误地移入国家目录。
-3. **汇总增强**: 自动生成 `all-countries-ip.txt` 并处理 IPv6 格式。
