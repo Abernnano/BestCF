@@ -112,3 +112,16 @@ jobs:
           repository: ${{ github.repository }}
           retain_days: 3
           keep_minimum_runs: 1
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: update-${{ env.update_version }}
+          name: 优选更新 - ${{ env.update_version }}
+          files: |
+            ./bestcf/*.txt
+          body: |
+            Cloudflare 优选 IP 自动更新。
+            更新时间：${{ env.update_version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
