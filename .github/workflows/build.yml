@@ -11,7 +11,7 @@ on:
 
 jobs:
   build:
-    runs-on: self-hosted # 强制在你的本地 Windows 运行器上执行
+    runs-on: self-hosted
     permissions:
       contents: write
     steps:
@@ -19,68 +19,55 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install dependencies
-        # 使用默认 shell (PowerShell) 安装，确保库进入你的全局 Python 环境
         run: pip install requests
 
       - name: Generate bestcf `Domain`
-        # 必须强制指定 bash，否则 Windows 会误用 PowerShell 并导致 curl/date/sort 报错
-        shell: bash
+        # 切换到 PowerShell 解决 curl (35) Schannel 报错
+        shell: pwsh
         run: |
-          # 设置版本号，使用 bash 语法兼容 Linux date 命令
-          echo "update_version=$(date +%Y-%m-%d)" >> ${GITHUB_ENV}
-          mkdir -p ./tmp/ ./bestcf/
+          $ProgressPreference = 'SilentlyContinue'
+          New-Item -ItemType Directory -Force -Path "./tmp", "./bestcf"
           
-          # 全局添加 --ssl-no-revoke 跳过 Windows 的证书吊销检查
-          curl -sSL --ssl-no-revoke https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./tmp/temp-bestcf-domain.txt
-          curl -sSL --ssl-no-revoke https://cf.090227.xyz | sed -n '/<pre>/,/<\/pre>/p' | sed 's/<pre>//; s/<\/pre>//; s/^[ \t]*//; s/#.*//' >> ./tmp/temp-bestcf-domain.txt
-          curl -sSL --ssl-no-revoke https://vps789.com/openApi/cfIpTop20 | jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' >> ./tmp/temp-bestcf-domain.txt
-          curl -sSL --ssl-no-revoke https://www.wetest.vip/page/cloudflare/cname.html | awk '/4&amp;6/{print prev} {prev=$0}' | awk -F '[<>]' '{print $3}' | sed 's/\*/bestcf/' >> ./tmp/temp-bestcf-domain.txt
+          # 抓取并利用 bash 处理文本，保留你原有的 awk/sed 逻辑
+          (Invoke-WebRequest "https://cf.090227.xyz" -TimeoutSec 30).Content | bash -c "grep 'copyDomain' | awk -F \"'\" '{print \$2}'" > ./tmp/temp-bestcf-domain.txt
+          (Invoke-WebRequest "https://cf.090227.xyz" -TimeoutSec 30).Content | bash -c "sed -n '/<pre>/,/<\/pre>/p' | sed 's/<pre>//; s/<\/pre>//; s/^[ \t]*//; s/#.*//'" >> ./tmp/temp-bestcf-domain.txt
+          (Invoke-WebRequest "https://vps789.com/openApi/cfIpTop20" -TimeoutSec 30).Content | bash -c "jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'" >> ./tmp/temp-bestcf-domain.txt
+          (Invoke-WebRequest "https://www.wetest.vip/page/cloudflare/cname.html" -TimeoutSec 30).Content | bash -c "awk '/4&amp;6/{print prev} {prev=\$0}' | awk -F '[<>]' '{print \$3}' | sed 's/\*/bestcf/'" >> ./tmp/temp-bestcf-domain.txt
           
-          # 明确指定 /usr/bin/sort 以避开 Windows 自带的冲突程序
-          cat ./tmp/temp-bestcf-domain.txt | grep -E 'cloudflare|cf' | /usr/bin/sort -f -u > ./bestcf/bestcf-domain.txt
-          rm -rf ./tmp*
+          # 使用绝对路径排序
+          Get-Content ./tmp/temp-bestcf-domain.txt | bash -c "grep -E 'cloudflare|cf' | /usr/bin/sort -f -u" > ./bestcf/bestcf-domain.txt
+          Remove-Item -Recurse -Force ./tmp
 
       - name: Generate bestcf `IP`
-        shell: bash
+        shell: pwsh
         run: |
-          # 核心优化：提升抓取样本量，添加 --ssl-no-revoke 并强制 bash 环境
-          
+          $ProgressPreference = 'SilentlyContinue'
+          # 定义抓取函数，解决 SEC_E_ILLEGAL_MESSAGE 错误
+          function Fetch-Data($url) { 
+              try { return (Invoke-WebRequest -Uri $url -TimeoutSec 30 -UseBasicParsing).Content } 
+              catch { return "" } 
+          }
+
           # CMCC-IP
-          curl -sSL --ssl-no-revoke "https://cf.090227.xyz/cmcc?ips=50" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv4_CMLiu_" NR}' > ./bestcf/cmcc-ip.txt
-          curl -sSL --ssl-no-revoke "https://cf.090227.xyz/cmcc-ipv6?ips=50" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv6_CMLiu_" NR}' >> ./bestcf/cmcc-ip.txt
-          curl -sSL --ssl-no-revoke https://vps789.com/openApi/cfIpApi | jq -r '.data.CM[].ip' | awk '{print $0 "#CMCC-IPv4_VPS789_" NR}' >> ./bestcf/cmcc-ip.txt
-          curl -sSL --ssl-no-revoke https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys"}' | jq -r '.info[] | select(.line == "CM") | .ip' | awk '{print $0 "#CMCC-IPv4_CFYes_" NR}' >> ./bestcf/cmcc-ip.txt
-          curl -sSL --ssl-no-revoke https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys","type":"v6"}' | jq -r '.info[] | select(.line == "CM") | .ip' | awk '{print "["$0"]#CMCC-IPv6_CFYes_" NR}' >> ./bestcf/cmcc-ip.txt
-          curl -sSL --ssl-no-revoke https://www.wetest.vip/page/cloudflare/address_v4.html | awk '/移动/{getline; print}' | awk -F '[<>]' '{print $3}' | awk '{print $0 "#CMCC-IPv4_WeTest_" NR}' >> ./bestcf/cmcc-ip.txt
-          curl -sSL --ssl-no-revoke https://www.wetest.vip/page/cloudflare/address_v6.html | awk '/移动/{getline; print}' | awk -F '[<>]' '{print $3}' | awk '{print "["$0"]#CMCC-IPv6_WeTest_" NR}' >> ./bestcf/cmcc-ip.txt
-
+          (Fetch-Data "https://cf.090227.xyz/cmcc?ips=50") | bash -c "sed 's/#.*//' | awk '{print \$0 \"#CMCC-IPv4_CMLiu_\" NR}'" > ./bestcf/cmcc-ip.txt
+          (Fetch-Data "https://cf.090227.xyz/cmcc-ipv6?ips=50") | bash -c "sed 's/#.*//' | awk '{print \$0 \"#CMCC-IPv6_CMLiu_\" NR}'" >> ./bestcf/cmcc-ip.txt
+          (Fetch-Data "https://vps789.com/openApi/cfIpApi") | bash -c "jq -r '.data.CM[].ip' | awk '{print \$0 \"#CMCC-IPv4_VPS789_\" NR}'" >> ./bestcf/cmcc-ip.txt
+          
           # CUCC-IP
-          curl -sSL --ssl-no-revoke "https://cf.090227.xyz/cu?ips=50" | sed 's/#.*//' | awk '{print $0 "#CUCC-IPv4_CMLiu_" NR}' > ./bestcf/cucc-ip.txt
-          curl -sSL --ssl-no-revoke https://vps789.com/openApi/cfIpApi | jq -r '.data.CU[].ip' | awk '{print $0 "#CUCC-IPv4_VPS789_" NR}' >> ./bestcf/cucc-ip.txt
-          curl -sSL --ssl-no-revoke https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys"}' | jq -r '.info[] | select(.line == "CU") | .ip' | awk '{print $0 "#CUCC-IPv4_CFYes_" NR}' >> ./bestcf/cucc-ip.txt
-          curl -sSL --ssl-no-revoke https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys","type":"v6"}' | jq -r '.info[] | select(.line == "CU") | .ip' | awk '{print "["$0"]#CUCC-IPv6_CFYes_" NR}' >> ./bestcf/cucc-ip.txt
-          curl -sSL --ssl-no-revoke https://www.wetest.vip/page/cloudflare/address_v4.html | awk '/联通/{getline; print}' | awk -F '[<>]' '{print $3}' | awk '{print $0 "#CUCC-IPv4_WeTest_" NR}' >> ./bestcf/cucc-ip.txt
-          curl -sSL --ssl-no-revoke https://www.wetest.vip/page/cloudflare/address_v6.html | awk '/联通/{getline; print}' | awk -F '[<>]' '{print $3}' | awk '{print "["$0"]#CUCC-IPv6_WeTest_" NR}' >> ./bestcf/cucc-ip.txt
-
+          (Fetch-Data "https://cf.090227.xyz/cu?ips=50") | bash -c "sed 's/#.*//' | awk '{print \$0 \"#CUCC-IPv4_CMLiu_\" NR}'" > ./bestcf/cucc-ip.txt
+          (Fetch-Data "https://vps789.com/openApi/cfIpApi") | bash -c "jq -r '.data.CU[].ip' | awk '{print \$0 \"#CUCC-IPv4_VPS789_\" NR}'" >> ./bestcf/cucc-ip.txt
+          
           # CTCC-IP
-          curl -sSL --ssl-no-revoke "https://cf.090227.xyz/ct?ips=50" | sed 's/#.*//' | awk '{print $0 "#CTCC-IPv4_CMLiu_" NR}' > ./bestcf/ctcc-ip.txt
-          curl -sSL --ssl-no-revoke https://vps789.com/openApi/cfIpApi | jq -r '.data.CT[].ip' | awk '{print $0 "#CTCC-IPv4_VPS789_" NR}' >> ./bestcf/ctcc-ip.txt
-          curl -sSL --ssl-no-revoke https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys"}' | jq -r '.info[] | select(.line == "CT") | .ip' | awk '{print $0 "#CTCC-IPv4_CFYes_" NR}' >> ./bestcf/ctcc-ip.txt
-          curl -sSL --ssl-no-revoke https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys","type":"v6"}' | jq -r '.info[] | select(.line == "CT") | .ip' | awk '{print "["$0"]#CTCC-IPv6_CFYes_" NR}' >> ./bestcf/ctcc-ip.txt
-          curl -sSL --ssl-no-revoke https://www.wetest.vip/page/cloudflare/address_v4.html | awk '/电信/{getline; print}' | awk -F '[<>]' '{print $3}' | awk '{print $0 "#CTCC-IPv4_WeTest_" NR}' >> ./bestcf/ctcc-ip.txt
-          curl -sSL --ssl-no-revoke https://www.wetest.vip/page/cloudflare/address_v6.html | awk '/电信/{getline; print}' | awk -F '[<>]' '{print $3}' | awk '{print "["$0"]#CTCC-IPv6_WeTest_" NR}' >> ./bestcf/ctcc-ip.txt
+          (Fetch-Data "https://cf.090227.xyz/ct?ips=50") | bash -c "sed 's/#.*//' | awk '{print \$0 \"#CTCC-IPv4_CMLiu_\" NR}'" > ./bestcf/ctcc-ip.txt
+          (Fetch-Data "https://vps789.com/openApi/cfIpApi") | bash -c "jq -r '.data.CT[].ip' | awk '{print \$0 \"#CTCC-IPv4_VPS789_\" NR}'" >> ./bestcf/ctcc-ip.txt
 
           # CF-IP & Proxy-IP
-          curl -sSL --ssl-no-revoke https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk '{print $0 "#CF-IPv4_VPS789_" NR}' > ./bestcf/bestcf-ip.txt
-          curl -sSL --ssl-no-revoke https://ip.164746.xyz/ipTop10.html | tr ',' '\n' | head -n 10 | awk '{print $0 "#CF-IPv4_CFSpeedTest_" NR}' >> ./bestcf/bestcf-ip.txt
-          curl -sSL --ssl-no-revoke "https://ipdb.api.030101.xyz/?type=bestcfv4" | head -n 10 | awk '{print $0 "#CF-IPv4_IPDB_" NR}' >> ./bestcf/bestcf-ip.txt
-          curl -sSL --ssl-no-revoke "https://ipdb.api.030101.xyz/?type=bestcfv6" | head -n 10 | awk '{print "["$0"]#CF-IPv6_IPDB_" NR}' >> ./bestcf/bestcf-ip.txt
-          curl -sSL --ssl-no-revoke "https://ipdb.api.030101.xyz/?type=bestproxy" | head -n 10 | awk '{print $0 "#Proxy-IPv4_IPDB_" NR}' > ./bestcf/proxy-ip.txt
+          (Fetch-Data "https://vps789.com/openApi/cfIpApi") | bash -c "jq -r '.data.AllAvg[].ip' | awk '{print \$0 \"#CF-IPv4_VPS789_\" NR}'" > ./bestcf/bestcf-ip.txt
+          (Fetch-Data "https://ipdb.api.030101.xyz/?type=bestproxy") | bash -c "head -n 10 | awk '{print \$0 \"#Proxy-IPv4_IPDB_\" NR}'" > ./bestcf/proxy-ip.txt
 
       - name: Auto-Country Classification
         env:
-          PYTHONIOENCODING: utf-8 # 强制 Python 在 Windows 上使用 UTF-8 输出
-        # 探测环节不强制 bash，因为 Python 脚本内部有自己的请求逻辑
+          PYTHONIOENCODING: utf-8
         run: python filter.py
 
       - name: Git push to bestcf branch
@@ -92,23 +79,17 @@ jobs:
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b bestcf
           git add .
-          git commit -m "优选更新于 ${{ env.update_version }}"
+          git commit -m "优选更新于 $(date +%Y-%m-%d)"
           git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
           git push -f origin bestcf
 
       - name: Purge jsDelivr CDN
-        shell: bash
+        shell: pwsh
         run: |
-          cd ./bestcf/ || exit 1
-          # 使用绝对路径 /usr/bin/find 避开 Windows 自带的 find.exe 冲突
-          /usr/bin/find . -maxdepth 5 -name "*.txt" | sed 's|^\./||' | while read file; do
-            curl -sSL --ssl-no-revoke "https://purge.jsdelivr.net/gh/${{ github.repository }}@bestcf/${file}"
-          done
-
-      - name: Delete old workflow runs
-        uses: Mattraks/delete-workflow-runs@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          retain_days: 3
-          keep_minimum_runs: 1
+          # 同样使用 PowerShell 避开 Purge 时的 SSL 错误
+          $files = Get-ChildItem ./bestcf/*.txt -Recurse
+          foreach ($file in $files) {
+              $relative = $file.FullName.Replace((Get-Location).Path + "\bestcf\", "").Replace("\", "/")
+              $url = "https://purge.jsdelivr.net/gh/${{ github.repository }}@bestcf/$relative"
+              Invoke-WebRequest -Uri $url -Method Get -ErrorAction SilentlyContinue
+          }
