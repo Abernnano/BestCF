@@ -45,30 +45,19 @@ session.headers.update({
 })
 
 def get_flag(country_code):
-    """
-    将国家码(如 HK)转换为国旗 Emoji
-    """
+    """将国家码转换为国旗 Emoji"""
     if not country_code or len(country_code) != 2:
         return ""
     try:
-        # 通过 Unicode 偏移量计算国旗 Emoji
         return "".join(chr(127397 + ord(c)) for c in country_code.upper())
     except:
         return ""
 
 def get_real_info(ip):
-    """
-    获取数据中心代码并返回映射的国家码
-    """
+    """获取数据中心代码并返回国家码"""
     clean_ip = ip.replace('[', '').replace(']', '').strip()
     try:
-        # 直接访问 Cloudflare 的 trace 接口
-        resp = session.get(
-            f"http://{clean_ip}/cdn-cgi/trace", 
-            timeout=2, 
-            verify=False,
-            proxies={'http': None, 'https': None} 
-        )
+        resp = session.get(f"http://{clean_ip}/cdn-cgi/trace", timeout=2, verify=False)
         if resp.status_code == 200:
             colo_match = re.search(r'colo=([A-Z]{3})', resp.text)
             if colo_match:
@@ -78,33 +67,52 @@ def get_real_info(ip):
         pass
     return None
 
-def process_file(filename, summary_set):
-    file_path = os.path.join(BASE_DIR, filename)
-    if not os.path.exists(file_path):
+def purge_jsdelivr():
+    """自动化刷新 jsDelivr CDN 缓存"""
+    repo = os.getenv("GITHUB_REPOSITORY")
+    if not repo:
+        print("[!] GITHUB_REPOSITORY env not found, skipping purge.")
         return
 
-    print(f"[*] Analyzing Routes with Flags: {filename}")
+    print(f"[*] Starting jsDelivr Purge for: {repo}")
+    
+    # 递归查找所有生成的 .txt 文件
+    purge_list = []
+    for root, _, files in os.walk(BASE_DIR):
+        for file in files:
+            if file.endswith(".txt"):
+                # 计算相对于 BASE_DIR 的路径并处理 Windows 反斜杠
+                rel_path = os.path.relpath(os.path.join(root, file), BASE_DIR).replace("\\", "/")
+                purge_list.append(rel_path)
+
+    for file_path in purge_list:
+        # 刷新地址格式: https://purge.jsdelivr.net/gh/user/repo@branch/file
+        url = f"https://purge.jsdelivr.net/gh/{repo}@bestcf/{file_path}"
+        try:
+            r = session.get(url, timeout=10)
+            status = "SUCCESS" if r.status_code == 200 else f"FAILED({r.status_code})"
+            print(f"    - [{status}] {file_path}")
+        except Exception as e:
+            print(f"    - [ERROR] {file_path}: {e}")
+
+def process_file(filename, summary_set):
+    file_path = os.path.join(BASE_DIR, filename)
+    if not os.path.exists(file_path): return
+
+    print(f"[*] Analyzing Routes: {filename}")
     with open(file_path, 'r', encoding='utf-8') as f:
         lines = [l.strip() for l in f.readlines() if l.strip()]
 
     categorized_data = {}
-
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        # 提交任务，注意处理 IPv6 的格式
         future_to_info = {executor.submit(get_real_info, line.split('#')[0].strip()): line for line in lines}
-        
         for future in as_completed(future_to_info):
             original_line = future_to_info[future]
             country_tag = future.result()
-            
             if country_tag:
                 ip_part = original_line.split('#')[0].strip()
                 old_comment = original_line.split('#')[1].strip() if '#' in original_line else ""
-                
-                # 获取国旗
                 flag = get_flag(country_tag) if len(country_tag) == 2 else ""
-                
-                # 标注格式：IP#国旗国家码_原注释
                 new_line = f"{ip_part}#{flag}{country_tag}_{old_comment}" if old_comment else f"{ip_part}#{flag}{country_tag}"
                 
                 if country_tag not in categorized_data:
@@ -112,28 +120,27 @@ def process_file(filename, summary_set):
                 categorized_data[country_tag].append(new_line)
                 summary_set.add(new_line)
 
-    # 写入分类文件
     for tag, items in categorized_data.items():
         country_dir = os.path.join(BASE_DIR, tag)
         os.makedirs(country_dir, exist_ok=True)
-        # 使用 utf-8 编码写入，确保国旗正常保存
         with open(os.path.join(country_dir, filename), 'w', encoding='utf-8', newline='\n') as f:
             f.write('\n'.join(items) + '\n')
 
 def main():
-    if not os.path.exists(BASE_DIR):
-        os.makedirs(BASE_DIR)
+    if not os.path.exists(BASE_DIR): os.makedirs(BASE_DIR)
     
     summary_ips = set()
     for f in CLASSIFY_FILES:
         process_file(f, summary_ips)
 
     if summary_ips:
-        # 生成全球汇总文件
         output_path = os.path.join(BASE_DIR, SUMMARY_FILE)
         with open(output_path, 'w', encoding='utf-8', newline='\n') as f:
             f.write('\n'.join(sorted(list(summary_ips))) + '\n')
-        print(f"[SUCCESS] Global summary with flags generated at: {output_path}")
+        print(f"[SUCCESS] Summary generated.")
+        
+        # 处理完所有文件后，执行 CDN 刷新
+        purge_jsdelivr()
 
 if __name__ == "__main__":
     main()
