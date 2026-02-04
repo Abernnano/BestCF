@@ -4,12 +4,12 @@ import os
 import sys
 import io
 import ssl
-import time
+import json
 from requests.adapters import HTTPAdapter
 from urllib3.util.ssl_ import create_urllib3_context
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# --- 兼容性修复：强制 TLS 1.2 ---
+# --- 核心修复：强制 TLS 1.2 避开 Windows Schannel Bug ---
 class TLSAdapter(HTTPAdapter):
     def init_poolmanager(self, *args, **kwargs):
         context = create_urllib3_context(ssl_version=ssl.PROTOCOL_TLSv1_2)
@@ -22,9 +22,8 @@ if sys.platform.startswith('win'):
 # --- 配置区 ---
 BASE_DIR = "./bestcf"
 SUMMARY_FILE = "all-countries-ip.txt"
-MAX_WORKERS = 30  # 适当降低并发以提高在 Windows 上的稳定性
+MAX_WORKERS = 40
 
-# 扩展 Colo 映射表
 COLO_MAP = {
     "HKG": "HK", "SIN": "SG", "NRT": "JP", "KIX": "JP", "ICN": "KR",
     "TPE": "TW", "LAX": "US", "SJC": "US", "SEA": "US", "SFO": "US",
@@ -38,106 +37,104 @@ session = requests.Session()
 session.mount("https://", TLSAdapter())
 session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"})
 
-def get_flag(country_code):
-    if not country_code or len(country_code) != 2: return ""
-    return "".join(chr(127397 + ord(c)) for c in country_code.upper())
+def get_flag(cc):
+    return "".join(chr(127397 + ord(c)) for c in cc.upper()) if cc and len(cc)==2 else ""
 
 def get_real_info(ip):
-    """获取数据中心并识别国家"""
     clean_ip = ip.replace('[', '').replace(']', '').strip()
-    # 尝试访问 trace 接口，增加重试
-    for _ in range(2):
-        try:
-            # 优先尝试 http 避免部分环境 SSL 握手慢
-            resp = session.get(f"http://{clean_ip}/cdn-cgi/trace", timeout=3, verify=False)
-            if resp.status_code == 200:
-                colo_match = re.search(r'colo=([A-Z]{3})', resp.text)
-                if colo_match:
-                    colo = colo_match.group(1)
-                    return COLO_MAP.get(colo, colo)
-        except:
-            continue
+    try:
+        # 尝试通过 Cloudflare 诊断接口获取数据中心(Colo)
+        resp = session.get(f"http://{clean_ip}/cdn-cgi/trace", timeout=2, verify=False)
+        if resp.status_code == 200:
+            match = re.search(r'colo=([A-Z]{3})', resp.text)
+            if match:
+                colo = match.group(1)
+                return COLO_MAP.get(colo, colo)
+    except: pass
     return "UNKNOWN"
 
-def fetch_data():
-    """替代 curl，直接下载所有源数据"""
-    print("[*] Downloading IP sources...")
-    sources = {
-        "cmcc-ip.txt": [
-            "https://cf.090227.xyz/cmcc?ips=50",
-            "https://cf.090227.xyz/cmcc-ipv6?ips=50"
-        ],
-        "cucc-ip.txt": ["https://cf.090227.xyz/cu?ips=50"],
-        "ctcc-ip.txt": ["https://cf.090227.xyz/ct?ips=50"],
-        "bestcf-ip.txt": ["https://ipdb.api.030101.xyz/?type=bestcfv4"]
+def safe_fetch(url, is_json=False, post_data=None):
+    """通用的安全下载函数，替代 curl"""
+    try:
+        if post_data:
+            r = session.post(url, json=post_data, timeout=10)
+        else:
+            r = session.get(url, timeout=10)
+        return r.json() if is_json else r.text
+    except Exception as e:
+        print(f"[!] Fetch Error: {url} -> {e}")
+        return None
+
+def main():
+    if not os.path.exists(BASE_DIR): os.makedirs(BASE_DIR)
+    
+    # 1. 抓取所有源数据 (原 YAML 里的所有 curl 逻辑)
+    print("[*] Downloading raw data...")
+    raw_data = {
+        "cmcc-ip.txt": [], "cucc-ip.txt": [], "ctcc-ip.txt": [], "bestcf-ip.txt": []
     }
     
-    for filename, urls in sources.items():
-        all_content = []
-        for url in urls:
-            try:
-                r = session.get(url, timeout=10)
-                if r.status_code == 200:
-                    all_content.append(r.text)
-            except:
-                print(f"[!] Failed to fetch {url}")
-        
-        with open(os.path.join(BASE_DIR, filename), 'w', encoding='utf-8') as f:
-            f.write("\n".join(all_content))
-
-def process_classification():
-    """核心处理逻辑"""
-    summary_ips = set()
-    files = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]
+    # 移动源
+    cmliu_cmcc = safe_fetch("https://cf.090227.xyz/cmcc?ips=50")
+    if cmliu_cmcc: raw_data["cmcc-ip.txt"].extend([f"{l}#CMCC_CMLiu" for l in cmliu_cmcc.splitlines()])
     
-    for filename in files:
-        file_path = os.path.join(BASE_DIR, filename)
-        if not os.path.exists(file_path): continue
-        
-        print(f"[*] Processing {filename}...")
-        with open(file_path, 'r', encoding='utf-8') as f:
-            lines = list(set([l.strip() for l in f.readlines() if l.strip()]))
+    # 联通源
+    cmliu_cu = safe_fetch("https://cf.090227.xyz/cu?ips=50")
+    if cmliu_cu: raw_data["cucc-ip.txt"].extend([f"{l}#CUCC_CMLiu" for l in cmliu_cu.splitlines()])
+    
+    # 电源源
+    cmliu_ct = safe_fetch("https://cf.090227.xyz/ct?ips=50")
+    if cmliu_ct: raw_data["ctcc-ip.txt"].extend([f"{l}#CTCC_CMLiu" for l in cmliu_ct.splitlines()])
 
+    # Hostmonit 优选 (替代 curl --data-raw)
+    hostmonit = safe_fetch("https://api.hostmonit.com/get_optimization_ip", is_json=True, post_data={"key":"iDetkOys"})
+    if hostmonit and 'info' in hostmonit:
+        for item in hostmonit['info']:
+            line_map = {"CM": "cmcc-ip.txt", "CU": "cucc-ip.txt", "CT": "ctcc-ip.txt"}
+            target_file = line_map.get(item['line'])
+            if target_file:
+                raw_data[target_file].append(f"{item['ip']}#CFYes_{item['line']}")
+
+    # 2. 处理与分类
+    summary_ips = set()
+    for filename, lines in raw_data.items():
+        if not lines: continue
+        print(f"[*] Classifying {filename}...")
         categorized = {}
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            future_to_ip = {executor.submit(get_real_info, line.split('#')[0]): line for line in lines}
-            for future in as_completed(future_to_ip):
-                original_line = future_to_ip[future]
-                tag = future.result()
-                ip = original_line.split('#')[0].strip()
+        
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as exec:
+            future_to_line = {exec.submit(get_real_info, l.split('#')[0]): l for l in lines}
+            for f in as_completed(future_to_line):
+                orig = future_to_line[f]
+                tag = f.result()
+                ip = orig.split('#')[0]
+                comment = orig.split('#')[1] if '#' in orig else ""
                 
-                # 即使识别失败也保留 UNKNOWN 标签，确保文件生成
                 flag = get_flag(tag)
-                new_line = f"{ip}#{flag}{tag}_{filename.split('-')[0].upper()}"
+                new_line = f"{ip}#{flag}{tag}_{comment}"
                 
                 if tag not in categorized: categorized[tag] = []
                 categorized[tag].append(new_line)
                 summary_ips.add(new_line)
 
-        # 写入分类
+        # 写入分类文件
         for tag, items in categorized.items():
-            tag_dir = os.path.join(BASE_DIR, tag)
-            os.makedirs(tag_dir, exist_ok=True)
-            with open(os.path.join(tag_dir, filename), 'w', encoding='utf-8', newline='\n') as f:
+            path = os.path.join(BASE_DIR, tag)
+            os.makedirs(path, exist_ok=True)
+            with open(os.path.join(path, filename), 'w', encoding='utf-8', newline='\n') as f:
                 f.write('\n'.join(items) + '\n')
 
-    # 生成总表
+    # 3. 生成汇总
     if summary_ips:
         with open(os.path.join(BASE_DIR, SUMMARY_FILE), 'w', encoding='utf-8', newline='\n') as f:
             f.write('\n'.join(sorted(list(summary_ips))))
+        print(f"[+] Total {len(summary_ips)} IPs generated.")
 
-def purge_cdn():
+    # 4. 刷新 CDN (直接在 Python 里完成)
     repo = os.getenv("GITHUB_REPOSITORY")
-    if not repo: return
-    print("[*] Purging CDN...")
-    # 简化的 purge 逻辑
-    try:
-        session.get(f"https://purge.jsdelivr.net/gh/{repo}@bestcf/{SUMMARY_FILE}", timeout=10)
-    except: pass
+    if repo:
+        print("[*] Purging jsDelivr...")
+        session.get(f"https://purge.jsdelivr.net/gh/{repo}@bestcf/{SUMMARY_FILE}")
 
 if __name__ == "__main__":
-    if not os.path.exists(BASE_DIR): os.makedirs(BASE_DIR)
-    fetch_data()            # 1. 下载
-    process_classification() # 2. 识别与分类
-    purge_cdn()             # 3. 刷新
-    print("[DONE] Project executed successfully.")
+    main()
