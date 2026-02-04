@@ -3,138 +3,110 @@ import re
 import os
 import sys
 import io
-import ssl
-import json
-from requests.adapters import HTTPAdapter
-from urllib3.util.ssl_ import create_urllib3_context
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# --- 核心修复：强制 TLS 1.2 避开 Windows Schannel Bug ---
-class TLSAdapter(HTTPAdapter):
-    def init_poolmanager(self, *args, **kwargs):
-        context = create_urllib3_context(ssl_version=ssl.PROTOCOL_TLSv1_2)
-        kwargs['ssl_context'] = context
-        return super(TLSAdapter, self).init_poolmanager(*args, **kwargs)
-
+# 彻底解决 Windows 控制台编码问题
 if sys.platform.startswith('win'):
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # --- 配置区 ---
+CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]
 BASE_DIR = "./bestcf"
 SUMMARY_FILE = "all-countries-ip.txt"
-MAX_WORKERS = 40
+MAX_WORKERS = 50 
 
+# 常见的 Cloudflare 数据中心(Colo)到国家码的映射表
 COLO_MAP = {
     "HKG": "HK", "SIN": "SG", "NRT": "JP", "KIX": "JP", "ICN": "KR",
     "TPE": "TW", "LAX": "US", "SJC": "US", "SEA": "US", "SFO": "US",
-    "FRA": "DE", "LHR": "GB", "CDG": "FR", "AMS": "NL", "ARN": "SE",
-    "BKK": "TH", "MNL": "PH", "KUL": "MY", "CAN": "CN", "SHA": "CN",
-    "PEK": "CN", "SZX": "CN", "CTU": "CN", "SYD": "AU", "MEL": "AU"
+    "FRA": "DE", "LHR": "GB", "CDG": "FR", "AMS": "NL", "ARN": "SE"
 }
 
 requests.packages.urllib3.disable_warnings()
-session = requests.Session()
-session.mount("https://", TLSAdapter())
-session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"})
-
-def get_flag(cc):
-    return "".join(chr(127397 + ord(c)) for c in cc.upper()) if cc and len(cc)==2 else ""
 
 def get_real_info(ip):
-    clean_ip = ip.replace('[', '').replace(']', '').strip()
+    """
+    通过探测获取数据中心代码(colo)，从而识别全球位置
+    """
+    clean_ip = ip.replace('[', '').replace(']', '')
     try:
-        # 尝试通过 Cloudflare 诊断接口获取数据中心(Colo)
-        resp = session.get(f"http://{clean_ip}/cdn-cgi/trace", timeout=2, verify=False)
+        # 强制直连探测，获取该 IP 在当前网络下的落地数据中心
+        resp = requests.get(
+            f"http://{clean_ip}/cdn-cgi/trace", 
+            timeout=2, 
+            verify=False,
+            proxies={'http': None, 'https': None} 
+        )
         if resp.status_code == 200:
-            match = re.search(r'colo=([A-Z]{3})', resp.text)
-            if match:
-                colo = match.group(1)
-                return COLO_MAP.get(colo, colo)
-    except: pass
-    return "UNKNOWN"
+            # 提取数据中心代码 (例如 colo=HKG)
+            colo_match = re.search(r'colo=([A-Z]{3})', resp.text)
+            if colo_match:
+                colo = colo_match.group(1)
+                # 转换国家码，如果不在映射表中则直接显示三字码
+                country = COLO_MAP.get(colo, colo)
+                return country
+    except:
+        pass
+    return None
 
-def safe_fetch(url, is_json=False, post_data=None):
-    """通用的安全下载函数，替代 curl"""
-    try:
-        if post_data:
-            r = session.post(url, json=post_data, timeout=10)
-        else:
-            r = session.get(url, timeout=10)
-        return r.json() if is_json else r.text
-    except Exception as e:
-        print(f"[!] Fetch Error: {url} -> {e}")
-        return None
+def process_file(filename, summary_set):
+    file_path = os.path.join(BASE_DIR, filename)
+    if not os.path.exists(file_path):
+        return
+
+    print(f"[*] Analyzing Global Routes: {filename}")
+    with open(file_path, 'r', encoding='utf-8') as f:
+        lines = [l.strip() for l in f.readlines() if l.strip()]
+
+    categorized_data = {}
+    success_count = 0
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        future_to_info = {}
+        for line in lines:
+            ip = line.split('#')[0].strip()
+            comment = line.split('#')[1].strip() if '#' in line else ""
+            future = executor.submit(get_real_info, ip)
+            future_to_info[future] = (ip, comment)
+        
+        for future in as_completed(future_to_info):
+            ip, old_comment = future_to_info[future]
+            country_tag = future.result()
+            
+            if country_tag:
+                # 标注格式：IP#国家码_原注释
+                new_line = f"{ip}#{country_tag}_{old_comment}" if old_comment else f"{ip}#{country_tag}"
+                
+                if country_tag not in categorized_data:
+                    categorized_data[country_tag] = []
+                categorized_data[country_tag].append(new_line)
+                
+                summary_set.add(new_line)
+                success_count += 1
+
+    for tag, items in categorized_data.items():
+        country_dir = os.path.join(BASE_DIR, tag)
+        os.makedirs(country_dir, exist_ok=True)
+        with open(os.path.join(country_dir, filename), 'w', encoding='utf-8') as f:
+            f.write('\n'.join(items) + '\n')
+    
+    print(f"    [+] {filename} Done: {success_count} Global IPs identified.")
 
 def main():
-    if not os.path.exists(BASE_DIR): os.makedirs(BASE_DIR)
+    if not os.path.exists(BASE_DIR):
+        os.makedirs(BASE_DIR)
     
-    # 1. 抓取所有源数据 (原 YAML 里的所有 curl 逻辑)
-    print("[*] Downloading raw data...")
-    raw_data = {
-        "cmcc-ip.txt": [], "cucc-ip.txt": [], "ctcc-ip.txt": [], "bestcf-ip.txt": []
-    }
-    
-    # 移动源
-    cmliu_cmcc = safe_fetch("https://cf.090227.xyz/cmcc?ips=50")
-    if cmliu_cmcc: raw_data["cmcc-ip.txt"].extend([f"{l}#CMCC_CMLiu" for l in cmliu_cmcc.splitlines()])
-    
-    # 联通源
-    cmliu_cu = safe_fetch("https://cf.090227.xyz/cu?ips=50")
-    if cmliu_cu: raw_data["cucc-ip.txt"].extend([f"{l}#CUCC_CMLiu" for l in cmliu_cu.splitlines()])
-    
-    # 电源源
-    cmliu_ct = safe_fetch("https://cf.090227.xyz/ct?ips=50")
-    if cmliu_ct: raw_data["ctcc-ip.txt"].extend([f"{l}#CTCC_CMLiu" for l in cmliu_ct.splitlines()])
-
-    # Hostmonit 优选 (替代 curl --data-raw)
-    hostmonit = safe_fetch("https://api.hostmonit.com/get_optimization_ip", is_json=True, post_data={"key":"iDetkOys"})
-    if hostmonit and 'info' in hostmonit:
-        for item in hostmonit['info']:
-            line_map = {"CM": "cmcc-ip.txt", "CU": "cucc-ip.txt", "CT": "ctcc-ip.txt"}
-            target_file = line_map.get(item['line'])
-            if target_file:
-                raw_data[target_file].append(f"{item['ip']}#CFYes_{item['line']}")
-
-    # 2. 处理与分类
     summary_ips = set()
-    for filename, lines in raw_data.items():
-        if not lines: continue
-        print(f"[*] Classifying {filename}...")
-        categorized = {}
-        
-        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as exec:
-            future_to_line = {exec.submit(get_real_info, l.split('#')[0]): l for l in lines}
-            for f in as_completed(future_to_line):
-                orig = future_to_line[f]
-                tag = f.result()
-                ip = orig.split('#')[0]
-                comment = orig.split('#')[1] if '#' in orig else ""
-                
-                flag = get_flag(tag)
-                new_line = f"{ip}#{flag}{tag}_{comment}"
-                
-                if tag not in categorized: categorized[tag] = []
-                categorized[tag].append(new_line)
-                summary_ips.add(new_line)
 
-        # 写入分类文件
-        for tag, items in categorized.items():
-            path = os.path.join(BASE_DIR, tag)
-            os.makedirs(path, exist_ok=True)
-            with open(os.path.join(path, filename), 'w', encoding='utf-8', newline='\n') as f:
-                f.write('\n'.join(items) + '\n')
+    # 严格仅处理分类列表，排除 proxy-ip.txt
+    for f in CLASSIFY_FILES:
+        process_file(f, summary_ips)
 
-    # 3. 生成汇总
+    summary_path = os.path.join(BASE_DIR, SUMMARY_FILE)
     if summary_ips:
-        with open(os.path.join(BASE_DIR, SUMMARY_FILE), 'w', encoding='utf-8', newline='\n') as f:
-            f.write('\n'.join(sorted(list(summary_ips))))
-        print(f"[+] Total {len(summary_ips)} IPs generated.")
-
-    # 4. 刷新 CDN (直接在 Python 里完成)
-    repo = os.getenv("GITHUB_REPOSITORY")
-    if repo:
-        print("[*] Purging jsDelivr...")
-        session.get(f"https://purge.jsdelivr.net/gh/{repo}@bestcf/{SUMMARY_FILE}")
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(sorted(list(summary_ips))) + '\n')
+        print(f"[SUCCESS] Global summary generated at: {summary_path}")
 
 if __name__ == "__main__":
     main()
