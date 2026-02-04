@@ -4,10 +4,8 @@ on:
   schedule:
     - cron: "0 */12 * * *"
   push:
-    branches:
-      - main
-    paths-ignore:
-      - "**/README.md"
+    branches: [main]
+    paths-ignore: ["**/README.md"]
 
 jobs:
   build:
@@ -22,55 +20,52 @@ jobs:
         run: pip install requests
 
       - name: Generate bestcf `Domain`
-        # 切换到 PowerShell 解决 curl (35) Schannel 报错
-        shell: pwsh
+        # 使用 Windows 自带的 powershell 避开 pwsh 缺失报错
+        shell: powershell
         run: |
           $ProgressPreference = 'SilentlyContinue'
-          New-Item -ItemType Directory -Force -Path "./tmp", "./bestcf"
+          if (!(Test-Path "./tmp")) { New-Item -ItemType Directory -Path "./tmp" }
+          if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" }
           
-          # 抓取并利用 bash 处理文本，保留你原有的 awk/sed 逻辑
+          # 抓取并利用 bash 处理文本，注意 PowerShell 中 $ 符号的转义
           (Invoke-WebRequest "https://cf.090227.xyz" -TimeoutSec 30).Content | bash -c "grep 'copyDomain' | awk -F \"'\" '{print \$2}'" > ./tmp/temp-bestcf-domain.txt
           (Invoke-WebRequest "https://cf.090227.xyz" -TimeoutSec 30).Content | bash -c "sed -n '/<pre>/,/<\/pre>/p' | sed 's/<pre>//; s/<\/pre>//; s/^[ \t]*//; s/#.*//'" >> ./tmp/temp-bestcf-domain.txt
           (Invoke-WebRequest "https://vps789.com/openApi/cfIpTop20" -TimeoutSec 30).Content | bash -c "jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'" >> ./tmp/temp-bestcf-domain.txt
           (Invoke-WebRequest "https://www.wetest.vip/page/cloudflare/cname.html" -TimeoutSec 30).Content | bash -c "awk '/4&amp;6/{print prev} {prev=\$0}' | awk -F '[<>]' '{print \$3}' | sed 's/\*/bestcf/'" >> ./tmp/temp-bestcf-domain.txt
           
-          # 使用绝对路径排序
           Get-Content ./tmp/temp-bestcf-domain.txt | bash -c "grep -E 'cloudflare|cf' | /usr/bin/sort -f -u" > ./bestcf/bestcf-domain.txt
           Remove-Item -Recurse -Force ./tmp
 
       - name: Generate bestcf `IP`
-        shell: pwsh
+        shell: powershell
         run: |
           $ProgressPreference = 'SilentlyContinue'
-          # 定义抓取函数，解决 SEC_E_ILLEGAL_MESSAGE 错误
-          function Fetch-Data($url) { 
-              try { return (Invoke-WebRequest -Uri $url -TimeoutSec 30 -UseBasicParsing).Content } 
-              catch { return "" } 
-          }
+          # 使用 Invoke-WebRequest 绕过 Schannel SSL 错误 (0x80090326)
+          function Fetch-IP($url) { try { return (Invoke-WebRequest -Uri $url -TimeoutSec 30 -UseBasicParsing).Content } catch { return "" } }
 
           # CMCC-IP
-          (Fetch-Data "https://cf.090227.xyz/cmcc?ips=50") | bash -c "sed 's/#.*//' | awk '{print \$0 \"#CMCC-IPv4_CMLiu_\" NR}'" > ./bestcf/cmcc-ip.txt
-          (Fetch-Data "https://cf.090227.xyz/cmcc-ipv6?ips=50") | bash -c "sed 's/#.*//' | awk '{print \$0 \"#CMCC-IPv6_CMLiu_\" NR}'" >> ./bestcf/cmcc-ip.txt
-          (Fetch-Data "https://vps789.com/openApi/cfIpApi") | bash -c "jq -r '.data.CM[].ip' | awk '{print \$0 \"#CMCC-IPv4_VPS789_\" NR}'" >> ./bestcf/cmcc-ip.txt
+          (Fetch-IP "https://cf.090227.xyz/cmcc?ips=50") | bash -c "sed 's/#.*//' | awk '{print \$0 \"#CMCC-IPv4_CMLiu_\" NR}'" > ./bestcf/cmcc-ip.txt
+          (Fetch-IP "https://cf.090227.xyz/cmcc-ipv6?ips=50") | bash -c "sed 's/#.*//' | awk '{print \$0 \"#CMCC-IPv6_CMLiu_\" NR}'" >> ./bestcf/cmcc-ip.txt
+          (Fetch-IP "https://vps789.com/openApi/cfIpApi") | bash -c "jq -r '.data.CM[].ip' | awk '{print \$0 \"#CMCC-IPv4_VPS789_\" NR}'" >> ./bestcf/cmcc-ip.txt
           
           # CUCC-IP
-          (Fetch-Data "https://cf.090227.xyz/cu?ips=50") | bash -c "sed 's/#.*//' | awk '{print \$0 \"#CUCC-IPv4_CMLiu_\" NR}'" > ./bestcf/cucc-ip.txt
-          (Fetch-Data "https://vps789.com/openApi/cfIpApi") | bash -c "jq -r '.data.CU[].ip' | awk '{print \$0 \"#CUCC-IPv4_VPS789_\" NR}'" >> ./bestcf/cucc-ip.txt
+          (Fetch-IP "https://cf.090227.xyz/cu?ips=50") | bash -c "sed 's/#.*//' | awk '{print \$0 \"#CUCC-IPv4_CMLiu_\" NR}'" > ./bestcf/cucc-ip.txt
+          (Fetch-IP "https://vps789.com/openApi/cfIpApi") | bash -c "jq -r '.data.CU[].ip' | awk '{print \$0 \"#CUCC-IPv4_VPS789_\" NR}'" >> ./bestcf/cucc-ip.txt
           
           # CTCC-IP
-          (Fetch-Data "https://cf.090227.xyz/ct?ips=50") | bash -c "sed 's/#.*//' | awk '{print \$0 \"#CTCC-IPv4_CMLiu_\" NR}'" > ./bestcf/ctcc-ip.txt
-          (Fetch-Data "https://vps789.com/openApi/cfIpApi") | bash -c "jq -r '.data.CT[].ip' | awk '{print \$0 \"#CTCC-IPv4_VPS789_\" NR}'" >> ./bestcf/ctcc-ip.txt
+          (Fetch-IP "https://cf.090227.xyz/ct?ips=50") | bash -c "sed 's/#.*//' | awk '{print \$0 \"#CTCC-IPv4_CMLiu_\" NR}'" > ./bestcf/ctcc-ip.txt
+          (Fetch-IP "https://vps789.com/openApi/cfIpApi") | bash -c "jq -r '.data.CT[].ip' | awk '{print \$0 \"#CTCC-IPv4_VPS789_\" NR}'" >> ./bestcf/ctcc-ip.txt
 
-          # CF-IP & Proxy-IP
-          (Fetch-Data "https://vps789.com/openApi/cfIpApi") | bash -c "jq -r '.data.AllAvg[].ip' | awk '{print \$0 \"#CF-IPv4_VPS789_\" NR}'" > ./bestcf/bestcf-ip.txt
-          (Fetch-Data "https://ipdb.api.030101.xyz/?type=bestproxy") | bash -c "head -n 10 | awk '{print \$0 \"#Proxy-IPv4_IPDB_\" NR}'" > ./bestcf/proxy-ip.txt
+          # CF-IP
+          (Fetch-IP "https://vps789.com/openApi/cfIpApi") | bash -c "jq -r '.data.AllAvg[].ip' | awk '{print \$0 \"#CF-IPv4_VPS789_\" NR}'" > ./bestcf/bestcf-ip.txt
+          (Fetch-IP "https://ipdb.api.030101.xyz/?type=bestproxy") | bash -c "head -n 10 | awk '{print \$0 \"#Proxy-IPv4_IPDB_\" NR}'" > ./bestcf/proxy-ip.txt
 
       - name: Auto-Country Classification
         env:
           PYTHONIOENCODING: utf-8
         run: python filter.py
 
-      - name: Git push to bestcf branch
+      - name: Git push
         shell: bash
         run: |
           cd ./bestcf/ || exit 1
@@ -82,14 +77,3 @@ jobs:
           git commit -m "优选更新于 $(date +%Y-%m-%d)"
           git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
           git push -f origin bestcf
-
-      - name: Purge jsDelivr CDN
-        shell: pwsh
-        run: |
-          # 同样使用 PowerShell 避开 Purge 时的 SSL 错误
-          $files = Get-ChildItem ./bestcf/*.txt -Recurse
-          foreach ($file in $files) {
-              $relative = $file.FullName.Replace((Get-Location).Path + "\bestcf\", "").Replace("\", "/")
-              $url = "https://purge.jsdelivr.net/gh/${{ github.repository }}@bestcf/$relative"
-              Invoke-WebRequest -Uri $url -Method Get -ErrorAction SilentlyContinue
-          }
