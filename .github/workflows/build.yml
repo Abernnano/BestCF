@@ -25,6 +25,8 @@ jobs:
       - name: Generate bestcf `Domain`
         # 必须强制指定 bash，否则 Windows 会误用 PowerShell 并导致 curl/date/sort 报错
         shell: bash
+        env:
+          CURL_SSL_BACKEND: openssl  # 强制使用 OpenSSL 后端
         run: |
           # 设置版本号，使用 bash 语法兼容 Linux date 命令
           echo "update_version=$(date +%Y-%m-%d)" >> ${GITHUB_ENV}
@@ -42,6 +44,8 @@ jobs:
 
       - name: Generate bestcf `IP`
         shell: bash
+        env:
+          CURL_SSL_BACKEND: openssl  # 强制使用 OpenSSL 后端
         run: |
           # 核心优化：提升抓取样本量，添加 --ssl-no-revoke 并强制 bash 环境
           
