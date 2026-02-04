@@ -22,11 +22,27 @@ jobs:
       - name: Setup Python Environment
         run: pip install requests urllib3
 
-      - name: Execute Core Logic (Fetch & Classify & Purge)
+      - name: Execute Core Logic
         env:
           PYTHONIOENCODING: utf-8
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: python main.py
+        shell: bash
+        run: |
+          # 1. 打印当前所在路径（排查用）
+          echo "Current Path: $(pwd)"
+          
+          # 2. 列出当前目录所有文件（排查用）
+          ls -F
+          
+          # 3. 尝试多种路径运行，确保万无一失
+          if [ -f "main.py" ]; then
+            python main.py
+          elif [ -f "BestCF/main.py" ]; then
+            python BestCF/main.py
+          else
+            echo "错误：在仓库中找不到 main.py！请确认文件已上传到 GitHub。"
+            exit 1
+          fi
 
       - name: Git push to bestcf branch
         shell: bash
