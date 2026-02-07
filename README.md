@@ -41,17 +41,35 @@
 为了让运行器既能通过代理拉取代码，又能通过直连探测真实路由，需在 **Clash Verge** 的 **全局扩展覆盖配置 (Merge)** 中添加以下规则：
 
 ```yaml
-prepend-rules:
-  # 确保 GitHub 资源走代理拉取
-  - DOMAIN-SUFFIX,github.com,Proxy
-  - DOMAIN-SUFFIX,githubusercontent.com,Proxy
-  - DOMAIN,objects.githubusercontent.com,Proxy
-  - DOMAIN,codeload.github.com,Proxy
+ipv6: true  # 必须为 true，否则 Clash 不会处理 IPv6 流量
 
-  # 强制 Cloudflare 探测接口直连，获取真实落地机房
+profile:
+  store-selected: true
+
+prepend-rules:
+  # 1. 强制 Cloudflare 探测及优选 IP 走直连 (确保探测出本地真实路由)
   - DOMAIN,cp.cloudflare.com,DIRECT
   - IP-CIDR,1.1.1.1/32,DIRECT
-  - IP-CIDR,104.16.0.0/12,DIRECT
+  - IP-CIDR,1.0.0.1/32,DIRECT
+  # 如果你有特定的优选 IP 段，在此处添加，例如：
+  # - IP-CIDR,104.16.0.0/12,DIRECT
+
+  # 2. GitHub 相关流量 (合并重复项，确保 Runner、下载及认证正常)
+  - DOMAIN-SUFFIX,github.com,Proxy
+  - DOMAIN-SUFFIX,githubusercontent.com,Proxy
+  - DOMAIN-SUFFIX,github.io,Proxy
+  - DOMAIN-SUFFIX,githubapp.com,Proxy
+  - DOMAIN-SUFFIX,ghcr.io,Proxy
+  - DOMAIN-SUFFIX,pkg.github.com,Proxy
+  - DOMAIN,objects.githubusercontent.com,Proxy
+  - DOMAIN,codeload.github.com,Proxy
+  - DOMAIN-SUFFIX,github-production-release-asset-2e65be.s3.amazonaws.com,Proxy
+  - DOMAIN-KEYWORD,github,Proxy
+
+  # 3. Microsoft 身份验证相关 (GitHub 登录/凭据管理器可能使用)
+  - DOMAIN-SUFFIX,microsoft.com,Proxy
+  - DOMAIN-SUFFIX,live.com,Proxy
+  - DOMAIN-SUFFIX,msauth.net,Proxy
 
 ```
 
