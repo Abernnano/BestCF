@@ -61,19 +61,35 @@ jobs:
           git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
           git push -f origin bestcf
 
-      - name: Create & Update GitHub Release
+      - name: Create & Update GitHub Release (Zero-Install Version)
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 检查并创建 Release
-          if ! gh release view "update-${{ env.update_version }}" >/dev/null 2>&1; then
-            gh release create "update-${{ env.update_version }}" --title "优选更新 - ${{ env.update_version }}" --notes "Auto-updated Cloudflare IPs"
+          TAG="update-${{ env.update_version }}"
+          REPO="${{ github.repository }}"
+          
+          # 1. 获取或创建 Release ID
+          echo "[*] Checking Release..."
+          REL_INFO=$(curl -sSLk -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/$REPO/releases/tags/$TAG")
+          RELEASE_ID=$(echo "$REL_INFO" | jq -r '.id // empty')
+
+          if [ -z "$RELEASE_ID" ]; then
+            echo "[*] Creating Release..."
+            REL_DATA="{\"tag_name\":\"$TAG\",\"title\":\"优选更新 - ${{ env.update_version }}\",\"body\":\"自动更新于 $(date)\"}"
+            RELEASE_ID=$(curl -sSLk -X POST -H "Authorization: token $GITHUB_TOKEN" -d "$REL_DATA" "https://api.github.com/repos/$REPO/releases" | jq -r '.id')
           fi
-          # 逐个稳定上传
+
+          # 2. 逐个上传文件 (增加针对透明代理的优化)
           for file in ./bestcf/*.txt; do
-            echo "Uploading $file..."
-            gh release upload "update-${{ env.update_version }}" "$file" --clobber || sleep 5 && gh release upload "update-${{ env.update_version }}" "$file" --clobber || true
+            filename=$(basename "$file")
+            echo "[*] Uploading $filename..."
+            # 使用 -4 强制 IPv4 和 --tls-max 1.2 解决你的路由器握手报错
+            curl -sSLk -4 --tls-max 1.2 -X POST \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$file" \
+              "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=$filename" || echo "::warning::$filename upload failed"
           done
 
       - name: Purge jsDelivr CDN
