@@ -25,40 +25,39 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Generate Data
+      - name: Generate Raw Data
         shell: bash
         env:
-          # 定义全局通用的强力 CURL 参数，解决 Windows Schannel 报错
-          CURL_OPTS: "-sSLk -4 --tls-max 1.2 --ssl-no-revoke --connect-timeout 15 --retry 5"
+          # 核心修复：-4 强制 IPv4, --tls-max 1.2 解决 Schannel 报错
+          CURL_OPTS: "-sSLk -4 --tls-max 1.2 --ssl-no-revoke --connect-timeout 20 --retry 5"
         run: |
           echo "update_version=$(date +%Y-%m-%d)" >> ${GITHUB_ENV}
           mkdir -p ./tmp/ ./bestcf/
           
-          # 1. 抓取域名 (增加容错)
-          curl $CURL_OPTS https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./tmp/temp.txt || true
-          curl $CURL_OPTS https://vps789.com/openApi/cfIpTop20 | jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' >> ./tmp/temp.txt || true
-          cat ./tmp/temp.txt | grep -E 'cloudflare|cf' | /usr/bin/sort -f -u > ./bestcf/bestcf-domain.txt
+          # 域名抓取
+          curl $CURL_OPTS https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./tmp/raw_domain.txt || true
+          curl $CURL_OPTS https://vps789.com/openApi/cfIpTop20 | jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' >> ./tmp/raw_domain.txt || true
+          cat ./tmp/raw_domain.txt | grep -E 'cloudflare|cf' | /usr/bin/sort -f -u > ./bestcf/bestcf-domain.txt
           
-          # 2. 抓取各运营商 IP (统一去掉 awk 里的中括号，由 Python 处理)
+          # 运营商 IP 抓取 (IPv4/IPv6 并行)
           # CMCC
           curl $CURL_OPTS "https://cf.090227.xyz/cmcc?ips=50" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv4_" NR}' > ./bestcf/cmcc-ip.txt
           curl $CURL_OPTS "https://cf.090227.xyz/cmcc-ipv6?ips=50" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv6_" NR}' >> ./bestcf/cmcc-ip.txt
-          
           # CUCC
           curl $CURL_OPTS "https://cf.090227.xyz/cu?ips=50" | sed 's/#.*//' | awk '{print $0 "#CUCC-IPv4_" NR}' > ./bestcf/cucc-ip.txt
-          
           # CTCC
           curl $CURL_OPTS "https://cf.090227.xyz/ct?ips=50" | sed 's/#.*//' | awk '{print $0 "#CTCC-IPv4_" NR}' > ./bestcf/ctcc-ip.txt
+          # CF-IP
+          curl $CURL_OPTS https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk '{print $0 "#CF-IPv4_Avg_" NR}' > ./bestcf/bestcf-ip.txt
           
-          # 其他源 (Hostmonit/VPS789 略, 确保使用 $CURL_OPTS)
-          curl $CURL_OPTS https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk '{print $0 "#CF-IPv4_VPS789_" NR}' >> ./bestcf/bestcf-ip.txt
+          rm -rf ./tmp*
 
       - name: Auto-Country Classification
         env:
           PYTHONIOENCODING: utf-8
         run: python filter.py
 
-      - name: Git push & Release
+      - name: Push to Branch
         shell: bash
         run: |
           cd ./bestcf/
@@ -75,7 +74,9 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: update-${{ env.update_version }}
+          name: 优选更新 - ${{ env.update_version }}
           files: ./bestcf/*.txt
+          body: "Cloudflare 优选数据自动更新于 ${{ env.update_version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -84,8 +85,8 @@ jobs:
         run: |
           cd ./bestcf/
           /usr/bin/find . -maxdepth 5 -name "*.txt" | sed 's|^\./||' | while read file; do
-            # 增加 -4 和 延迟，防止路由器负载过高
-            curl -sSLk -4 --ssl-no-revoke --connect-timeout 5 "https://purge.jsdelivr.net/gh/${{ github.repository }}@bestcf/${file}" || true
+            # 增加延迟防止被 CDN API 屏蔽
+            curl -sSLk -4 --ssl-no-revoke --connect-timeout 10 "https://purge.jsdelivr.net/gh/${{ github.repository }}@bestcf/${file}" || true
             sleep 1
           done
 
@@ -96,18 +97,31 @@ jobs:
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           echo "$(date)" > heartbeat.txt
           git add heartbeat.txt
-          git commit -m "Keepalive" && git push origin main || true
+          git commit -m "Chore: Keepalive heartbeat $(date)" && git push origin main || echo "Nothing to push"
 
-  # --- 新增：失败重试逻辑 ---
-  retry-on-failure:
-    runs-on: ubuntu-latest # 使用 GitHub 托管节点执行重试指令，更稳
+      - name: Delete old workflow runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 1
+          keep_minimum_runs: 1
+
+  # --- 完美的失败自动重试机制 ---
+  retry_on_failure:
+    name: Retry Logic
+    runs-on: ubuntu-latest # 使用云端节点重试，更稳
     needs: build
-    if: failure() # 仅在 build 任务失败时触发
+    if: failure() # 仅在 build 失败时触发
     steps:
-      - name: Wait and Retry
+      - name: Cool Down
         run: |
-          echo "检测到任务失败，10分钟后将尝试重新调度..."
-          sleep 600
+          echo "检测到任务失败，为了避开网络波动，系统将在 20 分钟后尝试重启..."
+          sleep 1200
+      
+      - name: Dispatch Re-run
+        run: |
+          # 调用 GitHub API 重新触发 Workflow
           curl -X POST \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
