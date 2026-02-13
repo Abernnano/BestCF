@@ -4,11 +4,8 @@ on:
   schedule:
     - cron: "0 */12 * * *"
   push:
-    branches:
-      - main
-    paths-ignore:
-      - "**/README.md"
-      - "heartbeat.txt"
+    branches: [ main ]
+    paths-ignore: [ "**/README.md", "heartbeat.txt" ]
 
 jobs:
   build:
@@ -25,31 +22,25 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Generate Raw Data
+      - name: Generate Data
         shell: bash
         env:
-          # 核心修复：-4 强制 IPv4, --tls-max 1.2 解决 Schannel 报错
           CURL_OPTS: "-sSLk -4 --tls-max 1.2 --ssl-no-revoke --connect-timeout 20 --retry 5"
         run: |
           echo "update_version=$(date +%Y-%m-%d)" >> ${GITHUB_ENV}
           mkdir -p ./tmp/ ./bestcf/
           
-          # 域名抓取
-          curl $CURL_OPTS https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./tmp/raw_domain.txt || true
-          curl $CURL_OPTS https://vps789.com/openApi/cfIpTop20 | jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' >> ./tmp/raw_domain.txt || true
-          cat ./tmp/raw_domain.txt | grep -E 'cloudflare|cf' | /usr/bin/sort -f -u > ./bestcf/bestcf-domain.txt
+          # 抓取域名
+          curl $CURL_OPTS https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./tmp/raw.txt || true
+          curl $CURL_OPTS https://vps789.com/openApi/cfIpTop20 | jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' >> ./tmp/raw.txt || true
+          cat ./tmp/raw.txt | grep -E 'cloudflare|cf' | /usr/bin/sort -f -u > ./bestcf/bestcf-domain.txt
           
-          # 运营商 IP 抓取 (IPv4/IPv6 并行)
-          # CMCC
+          # 抓取运营商 IP (注意：移除 awk 里的中括号，统一由 Python 处理)
           curl $CURL_OPTS "https://cf.090227.xyz/cmcc?ips=50" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv4_" NR}' > ./bestcf/cmcc-ip.txt
           curl $CURL_OPTS "https://cf.090227.xyz/cmcc-ipv6?ips=50" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv6_" NR}' >> ./bestcf/cmcc-ip.txt
-          # CUCC
           curl $CURL_OPTS "https://cf.090227.xyz/cu?ips=50" | sed 's/#.*//' | awk '{print $0 "#CUCC-IPv4_" NR}' > ./bestcf/cucc-ip.txt
-          # CTCC
           curl $CURL_OPTS "https://cf.090227.xyz/ct?ips=50" | sed 's/#.*//' | awk '{print $0 "#CTCC-IPv4_" NR}' > ./bestcf/ctcc-ip.txt
-          # CF-IP
           curl $CURL_OPTS https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk '{print $0 "#CF-IPv4_Avg_" NR}' > ./bestcf/bestcf-ip.txt
-          
           rm -rf ./tmp*
 
       - name: Auto-Country Classification
@@ -70,60 +61,52 @@ jobs:
           git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
           git push -f origin bestcf
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: update-${{ env.update_version }}
-          name: 优选更新 - ${{ env.update_version }}
-          files: ./bestcf/*.txt
-          body: "Cloudflare 优选数据自动更新于 ${{ env.update_version }}"
+      - name: Create & Update GitHub Release
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 检查并创建 Release
+          if ! gh release view "update-${{ env.update_version }}" >/dev/null 2>&1; then
+            gh release create "update-${{ env.update_version }}" --title "优选更新 - ${{ env.update_version }}" --notes "Auto-updated Cloudflare IPs"
+          fi
+          # 逐个稳定上传
+          for file in ./bestcf/*.txt; do
+            echo "Uploading $file..."
+            gh release upload "update-${{ env.update_version }}" "$file" --clobber || sleep 5 && gh release upload "update-${{ env.update_version }}" "$file" --clobber || true
+          done
 
       - name: Purge jsDelivr CDN
         shell: bash
         run: |
           cd ./bestcf/
           /usr/bin/find . -maxdepth 5 -name "*.txt" | sed 's|^\./||' | while read file; do
-            # 增加延迟防止被 CDN API 屏蔽
             curl -sSLk -4 --ssl-no-revoke --connect-timeout 10 "https://purge.jsdelivr.net/gh/${{ github.repository }}@bestcf/${file}" || true
             sleep 1
           done
 
-      - name: Keepalive
+      - name: Keepalive & Cleanup
         shell: bash
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           echo "$(date)" > heartbeat.txt
           git add heartbeat.txt
-          git commit -m "Chore: Keepalive heartbeat $(date)" && git push origin main || echo "Nothing to push"
+          git commit -m "Keepalive" && git push origin main || echo "Nothing to push"
 
-      - name: Delete old workflow runs
-        uses: Mattraks/delete-workflow-runs@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          retain_days: 1
-          keep_minimum_runs: 1
-
-  # --- 完美的失败自动重试机制 ---
+  # --- 失败重试逻辑 ---
   retry_on_failure:
-    name: Retry Logic
-    runs-on: ubuntu-latest # 使用云端节点重试，更稳
+    runs-on: ubuntu-latest
     needs: build
-    if: failure() # 仅在 build 失败时触发
+    if: failure()
     steps:
-      - name: Cool Down
+      - name: Wait 20m and Retry
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "检测到任务失败，为了避开网络波动，系统将在 20 分钟后尝试重启..."
+          echo "Build failed. Retrying in 20 minutes..."
           sleep 1200
-      
-      - name: Dispatch Re-run
-        run: |
-          # 调用 GitHub API 重新触发 Workflow
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/${{ github.repository }}/actions/workflows/generate_bestcf.yml/dispatches \
             -d '{"ref":"main"}'
