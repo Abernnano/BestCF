@@ -16,7 +16,8 @@ MAX_WORKERS = 50 # 考虑到路由器负载，降低并发
 
 COLO_MAP = {
     "HKG": "HK", "SIN": "SG", "NRT": "JP", "KIX": "JP", "ICN": "KR",
-    "TPE": "TW", "LAX": "US", "SJC": "US", "SEA": "US", "FRA": "DE"
+    "TPE": "TW", "LAX": "US", "SJC": "US", "SEA": "US", "FRA": "DE",
+    "LHR": "GB", "CDG": "FR", "AMS": "NL", "ARN": "SE", "SFO": "US"
 }
 
 requests.packages.urllib3.disable_warnings()
