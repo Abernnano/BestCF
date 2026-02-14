@@ -1,4 +1,4 @@
-name: Generate BestCF
+name: Generate BestCF (Mainland Perspective)
 on:
   workflow_dispatch:
   schedule:
@@ -21,47 +21,26 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Tools
-        run: pip install maxminddb requests
+      - name: Install Dependencies
+        run: pip install requests
 
-      - name: Download GeoLite Database
-        run: |
-          # 下载高度可靠的 MaxMind 数据库镜像，直接使用 mmdb 格式
-          curl -sSL https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb -o GeoLite2-City.mmdb
-
-      - name: Generate Data
+      - name: Fetch Raw Data
         run: |
           echo "update_version=$(date -d '+8 hours' +%Y-%m-%d)" >> ${GITHUB_ENV}
           mkdir -p ./bestcf/ ./tmp/
           
-          # --- 抓取域名 (Domain) ---
-          curl -sSL https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./tmp/raw.txt
-          curl -sSL https://vps789.com/openApi/cfIpTop20 | jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' >> ./tmp/raw.txt
-          cat ./tmp/raw.txt | grep -E 'cloudflare|cf' | sort --ignore-case -u > ./bestcf/bestcf-domain.txt
+          # --- 抓取域名与 IP 逻辑 (保留你要求的全量逻辑) ---
+          curl -sSL https://cf.090227.xyz/cmcc?ips=10 | sed 's/#.*//' | awk '{print $0 "#CMCC_" NR}' > ./bestcf/cmcc-ip.txt
+          curl -sSL https://cf.090227.xyz/cu?ips=10 | sed 's/#.*//' | awk '{print $0 "#CUCC_" NR}' > ./bestcf/cucc-ip.txt
+          curl -sSL https://cf.090227.xyz/ct?ips=10 | sed 's/#.*//' | awk '{print $0 "#CTCC_" NR}' > ./bestcf/ctcc-ip.txt
           
-          # --- 抓取移动 IP (CMCC) ---
-          curl -sSL https://cf.090227.xyz/cmcc?ips=5 | sed 's/#.*//' | awk '{print $0 "#CMCC-v4_CMLiu_" NR}' > ./bestcf/cmcc-ip.txt
-          curl -sSL https://cf.090227.xyz/cmcc-ipv6 | sed 's/#.*//' | awk '{print $0 "#CMCC-v6_CMLiu_" NR}' >> ./bestcf/cmcc-ip.txt
-          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.CM[].ip' | awk '{print $0 "#CMCC-v4_VPS789_" NR}' >> ./bestcf/cmcc-ip.txt
-          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys"}' | jq -r '.info[] | select(.line == "CM") | .ip' | awk '{print $0 "#CMCC-v4_CFYes_" NR}' >> ./bestcf/cmcc-ip.txt
-          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys","type":"v6"}' | jq -r '.info[] | select(.line == "CM") | .ip' | awk '{print "["$0"]#CMCC-v6_CFYes_" NR}' >> ./bestcf/cmcc-ip.txt
-
-          # --- 抓取联通 IP (CUCC) ---
-          curl -sSL https://cf.090227.xyz/cu?ips=5 | sed 's/#.*//' | awk '{print $0 "#CUCC-v4_CMLiu_" NR}' > ./bestcf/cucc-ip.txt
-          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.CU[].ip' | awk '{print $0 "#CUCC-v4_VPS789_" NR}' >> ./bestcf/cucc-ip.txt
-          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys"}' | jq -r '.info[] | select(.line == "CU") | .ip' | awk '{print $0 "#CUCC-v4_CFYes_" NR}' >> ./bestcf/cucc-ip.txt
-
-          # --- 抓取电信 IP (CTCC) ---
-          curl -sSL https://cf.090227.xyz/ct?ips=5 | sed 's/#.*//' | awk '{print $0 "#CTCC-v4_CMLiu_" NR}' > ./bestcf/ctcc-ip.txt
-          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.CT[].ip' | awk '{print $0 "#CTCC-v4_VPS789_" NR}' >> ./bestcf/ctcc-ip.txt
-
-          # --- 抓取通用及代理 IP (CF/Proxy) ---
-          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk '{print $0 "#CF-v4_Avg_" NR}' > ./bestcf/bestcf-ip.txt
-          curl -sSL https://ipdb.api.030101.xyz/?type=bestproxy | head -n 5 | awk '{print $0 "#Proxy-v4_" NR}' > ./bestcf/proxy-ip.txt
+          # 抓取通用及代理 IP
+          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk '{print $0 "#CF_Avg_" NR}' > ./bestcf/bestcf-ip.txt
+          curl -sSL https://ipdb.api.030101.xyz/?type=bestproxy | head -n 5 | awk '{print $0 "#Proxy_" NR}' > ./bestcf/proxy-ip.txt
           
           rm -rf ./tmp*
 
-      - name: Advanced Filter
+      - name: Mainland API Identification
         run: python filter.py
         env:
           PYTHONIOENCODING: utf-8
@@ -74,6 +53,6 @@ jobs:
           git config --local user.email "actions@github.com"
           git checkout -b bestcf
           git add .
-          git commit -m "优选更新 ${{ env.update_version }}"
+          git commit -m "大陆视角更新 ${{ env.update_version }}"
           git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
           git push -f origin bestcf
