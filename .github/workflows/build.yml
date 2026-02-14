@@ -23,7 +23,7 @@ jobs:
           # 强制 Git 使用 Windows 系统自带的证书库 (解决 SSL 报错)
           git config --global http.sslBackend schannel
           # 如果你的网络确实需要代理才能拉取 GitHub 代码，请在这里临时设置（根据你的代理端口修改）
-          # git config --global http.proxy http://127.0.0.1:7890 
+          # git config --global http.proxy http://127.0.0.1:7897 
           Write-Host "Git SSL backend switched to Schannel."
 
       - name: Checkout repository
