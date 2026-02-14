@@ -5,66 +5,65 @@ import sys
 import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# 强制禁用 Python 所有的系统代理环境变量
+os.environ['no_proxy'] = '*'
+os.environ['HTTP_PROXY'] = ''
+os.environ['HTTPS_PROXY'] = ''
+
 # 强制输出编码
 if sys.platform.startswith('win'):
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # --- 配置区 ---
-CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"] # 排除 proxy-ip.txt
+CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]
 BASE_DIR = "./bestcf"
 SUMMARY_FILE = "all-countries-ip.txt"
-MAX_WORKERS = 80 # 移除延迟测试后可以承受更高的并发
+MAX_WORKERS = 100 
 
-# 数据中心代码映射
+# 数据中心代码映射 (补充更多常见节点)
 COLO_MAP = {
     "HKG": "HK", "SIN": "SG", "NRT": "JP", "KIX": "JP", "ICN": "KR",
     "TPE": "TW", "LAX": "US", "SJC": "US", "SEA": "US", "FRA": "DE",
-    "LHR": "GB", "CDG": "FR", "AMS": "NL", "ARN": "SE", "SFO": "US"
+    "LHR": "GB", "CDG": "FR", "AMS": "NL", "ARN": "SE", "SFO": "US",
+    "IAD": "US", "ORD": "US", "DFW": "US", "EWR": "US", "YVR": "CA"
 }
 
 requests.packages.urllib3.disable_warnings()
 
+# 创建一个强制直连的 Session
+session = requests.Session()
+session.trust_env = False  # 关键：彻底忽略系统代理配置
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
 def get_flag(country_code):
-    """将国家码转换为国旗 Emoji"""
     if not country_code or len(country_code) != 2:
-        return ""
+        return "🌐"
     return "".join(chr(127397 + ord(c)) for c in country_code.upper())
 
 def get_ip_location(ip):
-    """
-    获取 IP 位置。
-    逻辑：优先尝试直连 Cloudflare 获取 Colo，失败则使用在线 GeoIP API。
-    """
-    # 1. 清洗 IP 格式
+    """获取 IP 位置，强制直连"""
     clean_ip = ip.replace('[', '').replace(']', '').strip()
     is_ipv6 = ":" in clean_ip
     
-    # 2. 尝试直连探测 (Cloudflare Trace)
-    # IPv6 在 URL 中必须包裹在 [] 中
+    # 1. 优先尝试 Cloudflare Trace 直连探测
     trace_url = f"http://[{clean_ip}]/cdn-cgi/trace" if is_ipv6 else f"http://{clean_ip}/cdn-cgi/trace"
-    
     try:
-        # 增加 User-Agent 伪装，避免被部分安全策略拦截
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        resp = requests.get(trace_url, timeout=2.5, verify=False, headers=headers, proxies={'http': None, 'https': None})
-        
+        # 使用直连 Session，超时缩短以提高效率
+        resp = session.get(trace_url, timeout=2, verify=False, headers=headers)
         if resp.status_code == 200:
             colo_match = re.search(r'colo=([A-Z]{3})', resp.text)
             if colo_match:
                 colo = colo_match.group(1)
                 return COLO_MAP.get(colo, colo)
-    except Exception:
-        # 如果直连失败（通常是因为本地无 IPv6 网络），执行下一步：在线 API 探测
+    except:
         pass
 
-    # 3. 【保底方案】使用在线 API（解决本地无 IPv6 环境问题）
+    # 2. 保底方案：使用 ip-api.com (同样强制直连)
     try:
-        # 使用 ip-api.com 接口获取国家码
         api_url = f"http://ip-api.com/json/{clean_ip}?fields=countryCode"
-        resp = requests.get(api_url, timeout=3.0)
+        resp = session.get(api_url, timeout=3)
         if resp.status_code == 200:
-            data = resp.json()
-            return data.get("countryCode")
+            return resp.json().get("countryCode")
     except:
         pass
 
@@ -80,7 +79,6 @@ def process_file(filename, summary_set):
         lines = [l.strip() for l in f.readlines() if l.strip()]
 
     categorized_data = {}
-
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         future_to_info = {executor.submit(get_ip_location, line.split('#')[0].strip()): line for line in lines}
         
@@ -91,9 +89,7 @@ def process_file(filename, summary_set):
             if country_tag:
                 ip = original_line.split('#')[0].strip()
                 old_comment = original_line.split('#')[1].strip() if '#' in original_line else ""
-                flag = get_flag(country_tag) if len(country_tag) == 2 else "🌐"
-                
-                # 移除延迟标注，仅保留：IP#国旗国家码_原注释
+                flag = get_flag(country_tag)
                 new_line = f"{ip}#{flag} {country_tag} | {old_comment}"
                 
                 if country_tag not in categorized_data:
@@ -118,7 +114,7 @@ def main():
     if summary_ips:
         with open(os.path.join(BASE_DIR, SUMMARY_FILE), 'w', encoding='utf-8') as f:
             f.write('\n'.join(sorted(list(summary_ips))) + '\n')
-        print(f"[SUCCESS] Multi-stack classification finished.")
+        print(f"[SUCCESS] Classification finished.")
 
 if __name__ == "__main__":
     main()
