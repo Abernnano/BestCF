@@ -1,68 +1,143 @@
-name: Generate bestcf (Local Linkage)
+name: Generate bestcf
 on:
   workflow_dispatch:
   schedule:
     - cron: "0 */12 * * *"
   push:
-    branches:
-      - main
-    paths-ignore:
-      - "**/README.md"
+    branches: [ main ]
+    paths-ignore: [ "**/README.md", "heartbeat.txt" ]
 
 jobs:
   build:
     runs-on: self-hosted
-    # 关键：强制 Windows 使用 bash 运行，避免命令行语法不通
-    defaults:
-      run:
-        shell: bash
-
+    permissions:
+      contents: write
+      actions: write
     steps:
-      - name: Fix Git Config & Mirror
-        run: |
-          # 解决 Windows 权限报错
-          git config --global --add safe.directory "*"
-          # 清除可能失效的旧镜像配置
-          git config --global --unset-all url."https://github.moeyy.xyz/https://github.com/".insteadOf || true
-          # 使用目前最稳定的镜像源 kkgithub
-          git config --global url."https://kkgithub.com/".insteadOf "https://github.com/"
-          echo "Git 镜像加速已切换为 kkgithub"
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          persist-credentials: false
           fetch-depth: 0
 
-      - name: Generate Raw Assets
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Generate Data
+        shell: bash
+        env:
+          CURL_OPTS: "-sSLk -4 --tls-max 1.2 --ssl-no-revoke --connect-timeout 20 --retry 5"
         run: |
           echo "update_version=$(date +%Y-%m-%d)" >> ${GITHUB_ENV}
-          mkdir -p ./bestcf/
+          mkdir -p ./tmp/ ./bestcf/
           
-          # 抓取逻辑 (保持原生抓取)
-          curl -sSL https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./bestcf/bestcf-domain.txt
-          curl -sSL "https://cf.090227.xyz/cmcc?ips=5" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv4"}' > ./bestcf/cmcc-ip.txt
-          curl -sSL "https://cf.090227.xyz/cu?ips=5" | sed 's/#.*//' | awk '{print $0 "#CUCC-IPv4"}' > ./bestcf/cucc-ip.txt
-          curl -sSL "https://cf.090227.xyz/ct?ips=5" | sed 's/#.*//' | awk '{print $0 "#CTCC-IPv4"}' > ./bestcf/ctcc-ip.txt
-          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk '{print $0 "#CF-IPv4_VPS789"}' > ./bestcf/bestcf-ip.txt
-          curl -sSL "https://ipdb.api.030101.xyz/?type=bestproxy" | head -n 5 | awk '{print $0 "#Proxy-IPv4"}' > ./bestcf/proxy-ip.txt
+          # 1. 抓取域名
+          curl $CURL_OPTS https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./tmp/raw.txt || true
+          curl $CURL_OPTS https://vps789.com/openApi/cfIpTop20 | jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' >> ./tmp/raw.txt || true
+          cat ./tmp/raw.txt | grep -E 'cloudflare|cf' | /usr/bin/sort -f -u > ./bestcf/bestcf-domain.txt
+          
+          # 2. 抓取运营商 IP (注意：IPv6 保持原样，交给 Python 处理中括号)
+          curl $CURL_OPTS "https://cf.090227.xyz/cmcc?ips=50" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv4_" NR}' > ./bestcf/cmcc-ip.txt
+          curl $CURL_OPTS "https://cf.090227.xyz/cmcc-ipv6?ips=50" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv6_" NR}' >> ./bestcf/cmcc-ip.txt
+          curl $CURL_OPTS "https://cf.090227.xyz/cu?ips=50" | sed 's/#.*//' | awk '{print $0 "#CUCC-IPv4_" NR}' > ./bestcf/cucc-ip.txt
+          curl $CURL_OPTS "https://cf.090227.xyz/ct?ips=50" | sed 's/#.*//' | awk '{print $0 "#CTCC-IPv4_" NR}' > ./bestcf/ctcc-ip.txt
+          curl $CURL_OPTS https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk '{print $0 "#CF-IPv4_Avg_" NR}' > ./bestcf/bestcf-ip.txt
+          rm -rf ./tmp*
 
-      - name: Detect Local Routing (Colo)
-        run: python3 geoip_tool.py
+      - name: Auto-Country Classification
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python filter.py
 
-      - name: Aggregate All-IP File
+      - name: Push to Branch
+        shell: bash
         run: |
-          # 此时 Python 已处理完标签，进行合并
-          cat ./bestcf/cmcc-ip.txt ./bestcf/cucc-ip.txt ./bestcf/ctcc-ip.txt ./bestcf/bestcf-ip.txt > ./bestcf/all-ip.txt
-          echo "汇总文件 all-ip.txt 已生成"
+          cd ./bestcf/
+          git init
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b bestcf
+          git add .
+          git commit -m "优选更新于 ${{ env.update_version }}"
+          git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+          git push -f origin bestcf
 
-      - name: Push to GitHub
+      - name: Create & Update GitHub Release (Overwrite Version)
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          TAG="update-${{ env.update_version }}"
+          REPO="${{ github.repository }}"
+          API_URL="https://api.github.com/repos/$REPO"
+          
+          # 1. 获取或创建 Release ID
+          echo "[*] Checking Release: $TAG"
+          REL_INFO=$(curl -sSLk -H "Authorization: token $GITHUB_TOKEN" "$API_URL/releases/tags/$TAG")
+          RELEASE_ID=$(echo "$REL_INFO" | jq -r '.id // empty')
+
+          if [ -z "$RELEASE_ID" ]; then
+            echo "[*] Release not found, creating..."
+            REL_DATA="{\"tag_name\":\"$TAG\",\"title\":\"优选更新 - ${{ env.update_version }}\",\"body\":\"自动更新于 $(date)\"}"
+            RELEASE_ID=$(curl -sSLk -X POST -H "Authorization: token $GITHUB_TOKEN" -d "$REL_DATA" "$API_URL/releases" | jq -r '.id')
+          else
+            echo "[*] Found existing Release ID: $RELEASE_ID"
+          fi
+
+          # 2. 获取当前 Release 下的所有 Asset 列表，用于查重
+          ASSETS=$(curl -sSLk -H "Authorization: token $GITHUB_TOKEN" "$API_URL/releases/$RELEASE_ID/assets")
+
+          # 3. 逐个处理本地文件
+          for file in ./bestcf/*.txt; do
+            filename=$(basename "$file")
+            echo "-----------------------------------"
+            echo "[*] Processing $filename..."
+
+            ASSET_ID=$(echo "$ASSETS" | jq -r ".[] | select(.name==\"$filename\") | .id // empty")
+
+            if [ -n "$ASSET_ID" ]; then
+              echo "[!] Asset exists (ID: $ASSET_ID). Deleting..."
+              curl -sSLk -X DELETE -H "Authorization: token $GITHUB_TOKEN" "$API_URL/releases/assets/$ASSET_ID"
+              sleep 1
+            fi
+
+            echo "[*] Uploading $filename..."
+            curl -sSLk -4 --tls-max 1.2 -X POST \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$file" \
+              "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=$filename" || echo "::warning::$filename upload failed"
+          done
+
+      - name: Purge jsDelivr CDN
+        shell: bash
+        run: |
+          cd ./bestcf/
+          /usr/bin/find . -maxdepth 5 -name "*.txt" | sed 's|^\./||' | while read file; do
+            curl -sSLk -4 --ssl-no-revoke --connect-timeout 10 "https://purge.jsdelivr.net/gh/${{ github.repository }}@bestcf/${file}" || true
+            sleep 1
+          done
+
+      - name: Keepalive & Cleanup
+        shell: bash
+        run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .
-          git commit -m "本地联动更新: ${update_version} (节点识别)" || exit 0
-          # 再次确保通过镜像站推送
-          git push "https://x-access-token:${GITHUB_TOKEN}@kkgithub.com/${{ github.repository }}.git" HEAD:main
+          echo "$(date)" > heartbeat.txt
+          git add heartbeat.txt
+          git commit -m "Keepalive" && git push origin main || echo "Nothing to push"
+
+  # --- 失败重试逻辑 (20分钟后重启) ---
+  retry_on_failure:
+    runs-on: ubuntu-latest
+    needs: build
+    if: failure()
+    steps:
+      - name: Delay and Retry
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          sleep 1200
+          curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/generate_bestcf.yml/dispatches \
+            -d '{"ref":"main"}'
