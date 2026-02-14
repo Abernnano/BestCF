@@ -23,9 +23,20 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Professional API Tools
+      - name: Install Professional Tools
         run: |
-          pip install ip2location-python requests
+          # maxminddb 库解析速度极快，符合你对高效数据结构的要求
+          pip install maxminddb requests
+
+      - name: Download MaxMind Database
+        run: |
+          # 下载高度可靠的 GeoLite2 城市数据库镜像
+          curl -sSL https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-City.mmdb -o GeoLite2-City.mmdb
+
+      - name: Advanced Identification
+        run: python filter.py
+        env:
+          PYTHONIOENCODING: utf-8
           
       - name: Download IP2Location DB
         run: |
