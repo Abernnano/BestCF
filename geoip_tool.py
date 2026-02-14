@@ -3,59 +3,56 @@ import re
 import requests
 from concurrent.futures import ThreadPoolExecutor
 
-# 探测 Cloudflare 节点的函数
-def get_cf_colo(ip_with_brackets):
-    # 移除方括号以便请求
-    clean_ip = ip_with_brackets.replace('[', '').replace(']', '')
-    # 如果是 IPv6，请求格式需要处理
-    url = f"http://[{clean_ip}]/cdn-cgi/trace" if ':' in clean_ip else f"http://{clean_ip}/cdn-cgi/trace"
+# 针对中国地区优化的节点映射
+COLO_MAP = {
+    "HKG": "香港", "TPE": "台北", "SGP": "新加坡", "NRT": "东京", 
+    "KIX": "大阪", "ICN": "首尔", "BKK": "曼谷", "MNL": "马尼拉",
+    "KUL": "吉隆坡", "LAX": "洛杉矶", "SJC": "圣何塞", "SEA": "西雅图",
+    "IAD": "华盛顿", "FRA": "法兰克福", "LHR": "伦敦", "CTU": "成都",
+    "CAN": "广州", "SHA": "上海", "BJS": "北京"
+}
+
+def get_cf_colo(ip_part):
+    clean_ip = ip_part.replace('[', '').replace(']', '')
+    # 识别 IPv6
+    is_ipv6 = ':' in clean_ip
+    url = f"http://[{clean_ip}]/cdn-cgi/trace" if is_ipv6 else f"http://{clean_ip}/cdn-cgi/trace"
     
     try:
-        # 设置 2 秒超时，直接请求 Cloudflare 诊断接口
-        response = requests.get(url, timeout=2, headers={'Host': 'da.gd'})
-        if response.status_code == 200:
-            # 在返回的文本中查找 colo=XXX
-            match = re.search(r'colo=([A-Z]{3})', response.text)
+        # 本地联动核心：直接通过本地网络连接
+        # 使用 da.gd 作为 Host 诱导 CF 响应，或者直接请求
+        resp = requests.get(url, timeout=3, headers={'Host': 'da.gd'})
+        if resp.status_code == 200:
+            match = re.search(r'colo=([A-Z]{3})', resp.text)
             if match:
-                return match.group(1)
-    except:
+                code = match.group(1)
+                return COLO_MAP.get(code, f"未知-{code}")
+    except Exception:
         pass
-    return "UNK" # 未知节点
+    return "超时/死IP"
 
-def process_line(line):
-    if '#' not in line:
-        return line
+def process_file(path):
+    if not os.path.exists(path): return
+    with open(path, 'r') as f:
+        lines = f.readlines()
     
-    parts = line.strip().split('#')
-    ip_part = parts[0]
-    comment = parts[1] if len(parts) > 1 else ""
+    processed_lines = []
+    # 使用线程池并发提高本地识别速度
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        results = list(executor.map(lambda l: (l, get_cf_colo(l.split('#')[0])), lines))
     
-    # 获取该 IP 的实测节点代码
-    colo = get_cf_colo(ip_part)
-    return f"{ip_part}#[{colo}]{comment}\n"
-
-def main():
-    target_dir = './bestcf/'
-    # 需要处理的文件列表
-    files_to_process = [
-        'cmcc-ip.txt', 'cucc-ip.txt', 'ctcc-ip.txt', 'bestcf-ip.txt', 'proxy-ip.txt'
-    ]
-
-    for filename in files_to_process:
-        path = os.path.join(target_dir, filename)
-        if not os.path.exists(path):
-            continue
-            
-        with open(path, 'r') as f:
-            lines = f.readlines()
-
-        # 使用线程池并发探测，加快速度
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            new_lines = list(executor.map(process_line, lines))
-
-        with open(path, 'w') as f:
-            f.writelines(new_lines)
-        print(f"Processed {filename}")
+    for line, colo in results:
+        parts = line.strip().split('#')
+        ip = parts[0]
+        tag = parts[1] if len(parts) > 1 else ""
+        processed_lines.append(f"{ip}#[{colo}]{tag}\n")
+        
+    with open(path, 'w') as f:
+        f.writelines(processed_lines)
 
 if __name__ == "__main__":
-    main()
+    target_dir = './bestcf/'
+    files = ['cmcc-ip.txt', 'cucc-ip.txt', 'ctcc-ip.txt', 'bestcf-ip.txt']
+    for f in files:
+        print(f"正在本地识别: {f}")
+        process_file(os.path.join(target_dir, f))
