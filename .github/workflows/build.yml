@@ -63,6 +63,9 @@ jobs:
           # Proxy-IP
           curl -sSL https://ipdb.api.030101.xyz/?type=bestproxy | head -n 5 | awk '{print $0 "#Proxy-IPv4_IPDB_" NR}' > ./bestcf/proxy-ip.txt
 
+          # 新增汇总：将所有 IP 文件汇总到 all-ip.txt，不包含 proxy-ip 和 domain
+          cat ./bestcf/cmcc-ip.txt ./bestcf/cucc-ip.txt ./bestcf/ctcc-ip.txt ./bestcf/bestcf-ip.txt > ./bestcf/all-ip.txt
+
       - name: Release and upload `bestcf` assets
         uses: svenstaro/upload-release-action@v2
         with:
@@ -73,6 +76,7 @@ jobs:
           body: |
             [Cloudflare](https://dash.cloudflare.com) 优选域名和 IP
             文件更新于 ${{ env.update_version }}
+            汇总 IP 文件：all-ip.txt
           file_glob: true
           file: ./bestcf/*
 
