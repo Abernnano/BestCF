@@ -130,13 +130,23 @@ jobs:
           git init
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # --- 关键修复：临时设置代理和安全配置 ---
+          # 假设你的本地代理是 7890 端口，请确保这个地址是你运行器能上网的代理地址
+          git config --local http.proxy "http://127.0.0.1:7897" 
+          git config --local https.proxy "http://127.0.0.1:7897"
+          git config --local http.sslBackend schannel
+          git config --local http.sslVerify "false"
+          
           git checkout -b bestcf
           git add .
           git commit -m "优选更新于 $($env:update_version)"
-          # 强制推送到远程 bestcf 分支
+          
+          # 推送
           git push -f "https://$($env:GITHUB_ACTOR):$($env:GITHUB_TOKEN)@github.com/$($env:GITHUB_REPOSITORY).git" bestcf
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
 
       - name: Create & Update GitHub Release
         uses: softprops/action-gh-release@v1
