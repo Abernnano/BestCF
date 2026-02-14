@@ -133,6 +133,10 @@ jobs:
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          # 关键步骤：先拉取远程更新，防止冲突
+          git pull origin main --rebase
+          
           Get-Date | Out-File -FilePath "heartbeat.txt" -Encoding utf8
           git add heartbeat.txt
           git commit -m "Chore: Keepalive heartbeat $(Get-Date)"
