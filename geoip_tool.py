@@ -3,31 +3,34 @@ import re
 import requests
 from concurrent.futures import ThreadPoolExecutor
 
-# 1. 强制屏蔽环境变量代理，确保直连探测
+# 彻底屏蔽系统代理环境变量，强制 Python 直连
 os.environ['NO_PROXY'] = '*'
-os.environ['http_proxy'] = ''
-os.environ['https_proxy'] = ''
+for env_var in ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY']:
+    if env_var in os.environ:
+        del os.environ[env_var]
 
-# 常用节点中文映射
+# 更加丰富的 Cloudflare 节点映射
 COLO_MAP = {
     "HKG": "香港", "TPE": "台北", "SGP": "新加坡", "NRT": "东京", 
-    "KIX": "大阪", "ICN": "首尔", "LAX": "洛杉矶", "SJC": "圣何塞",
-    "SEA": "西雅图", "IAD": "华盛顿", "FRA": "法兰克福", "LHR": "伦敦",
-    "CAN": "广州", "SHA": "上海", "BJS": "北京", "CTU": "成都"
+    "KIX": "大阪", "ICN": "首尔", "BKK": "曼谷", "MNL": "马尼拉",
+    "KUL": "吉隆坡", "LAX": "洛杉矶", "SJC": "圣何塞", "SEA": "西雅图",
+    "IAD": "华盛顿", "FRA": "法兰克福", "LHR": "伦敦", "CTU": "成都",
+    "CAN": "广州", "SHA": "上海", "BJS": "北京", "HGH": "杭州"
 }
 
 def get_real_colo(ip_str):
-    """直接向 IP 请求 Cloudflare 诊断信息，获取真实连接节点"""
+    """实测 IP 连接到的 Cloudflare 数据中心"""
     clean_ip = ip_str.replace('[', '').replace(']', '').strip()
     is_ipv6 = ':' in clean_ip
+    # 构造 Cloudflare 诊断 URL
     url = f"http://[{clean_ip}]/cdn-cgi/trace" if is_ipv6 else f"http://{clean_ip}/cdn-cgi/trace"
     
     try:
-        # trust_env=False 禁止读取系统代理配置
+        # trust_env=False 关键：不读取电脑本地的代理配置（如 Clash/V2Ray）
         session = requests.Session()
         session.trust_env = False 
         
-        # 针对 Cloudflare IP 必须携带正确的 Host 才能触发 trace
+        # 这里的 Host 必须是 Cloudflare 上的域名，否则无法识别 trace
         response = session.get(url, timeout=2, headers={'Host': 'da.gd'})
         if response.status_code == 200:
             match = re.search(r'colo=([A-Z]{3})', response.text)
@@ -46,26 +49,30 @@ def process_file(file_path):
         lines = f.readlines()
 
     def update_line(line):
-        if '#' not in line:
-            return line
-        ip_part, tag_part = line.strip().split('#', 1)
-        # 探测真实节点
+        line = line.strip()
+        if not line or '#' not in line:
+            return line + "\n"
+        
+        ip_part, tag_part = line.split('#', 1)
+        # 获取本地环境下的真实节点
         colo = get_real_colo(ip_part)
+        # 拼接结果：IP#[节点]原始标签
         return f"{ip_part}#[{colo}]{tag_part}\n"
 
-    # 并发处理提高速度
-    with ThreadPoolExecutor(max_workers=15) as executor:
+    # 使用 20 个线程并发探测，加快处理速度
+    with ThreadPoolExecutor(max_workers=20) as executor:
         new_lines = list(executor.map(update_line, lines))
 
     with open(file_path, 'w', encoding='utf-8') as f:
         f.writelines(new_lines)
-    print(f"处理完成: {file_path}")
 
 if __name__ == "__main__":
-    base_path = "./bestcf/"
-    # 按照顺序处理需要打标签的文件
+    # 处理生成的所有 IP 文件
+    base_dir = "./bestcf/"
     target_files = ['cmcc-ip.txt', 'cucc-ip.txt', 'ctcc-ip.txt', 'bestcf-ip.txt', 'proxy-ip.txt']
     
     for filename in target_files:
-        full_path = os.path.join(base_path, filename)
-        process_file(full_path)
+        path = os.path.join(base_dir, filename)
+        if os.path.exists(path):
+            print(f"正在分析节点归属: {filename}")
+            process_file(path)
