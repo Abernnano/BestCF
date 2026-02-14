@@ -17,105 +17,94 @@ jobs:
       contents: write
       actions: write
     steps:
-      - name: Fix Git SSL and Proxy
-        shell: powershell
-        run: |
-          git config --global http.sslBackend schannel
-          # 针对你的 7897 端口设置全局拉取代理（如有必要）
-          # git config --global http.proxy http://127.0.0.1:7897
-          Write-Host "Git environment initialized."
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-        env:
-          GIT_SSL_NO_VERIFY: "true"
 
       - name: Prepare Directories
-        shell: powershell
+        shell: bash
         run: |
-          if (!(Test-Path "./tmp")) { New-Item -ItemType Directory -Path "./tmp" -Force }
-          if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" -Force }
-          echo "update_version=$(Get-Date -Format 'yyyy-MM-dd')" >> $env:GITHUB_ENV
+          mkdir -p ./tmp/ ./bestcf/
+          echo "update_version=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
 
       - name: Generate bestcf `Domain`
-        shell: powershell
+        shell: bash
         run: |
-          $domains = New-Object System.Collections.Generic.List[string]
-          try {
-              $resp1 = Invoke-RestMethod -Uri "https://cf.090227.xyz" -UserAgent "Mozilla/5.0"
-              if ($resp1 -match "copyDomain\('(.+?)'\)") { $domains.Add($matches[1]) }
-          } catch { Write-Warning "Source 1 failed" }
-          # ... 其他域名源逻辑 ...
-          $domains | Select-Object -Unique | Where-Object { $_ -match "cloudflare|cf" } | Out-File -FilePath "./bestcf/bestcf-domain.txt" -Encoding utf8
+          # 抓取各类域名称
+          curl -sSL https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./tmp/temp-bestcf-domain.txt
+          curl -sSL https://cf.090227.xyz | sed -n '/<pre>/,/<\/pre>/p' | sed 's/<pre>//; s/<\/pre>//; s/^[ \t]*//; s/#.*//' >> ./tmp/temp-bestcf-domain.txt
+          curl -sSL https://vps789.com/openApi/cfIpTop20 | jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' >> ./tmp/temp-bestcf-domain.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/cname.html | awk '/4&amp;6/{print prev} {prev=$0}' | awk -F '[<>]' '{print $3}' | sed 's/\*/bestcf/' >> ./tmp/temp-bestcf-domain.txt
+          
+          # 过滤并去重
+          cat ./tmp/temp-bestcf-domain.txt | grep -Ei 'cloudflare|cf' | sort -u > ./bestcf/bestcf-domain.txt
+          rm -f ./tmp/temp-bestcf-domain.txt
 
       - name: Generate bestcf `IP`
-        shell: powershell
+        shell: bash
         run: |
-          function Get-IPList($url, $label) {
-              try {
-                  $data = Invoke-RestMethod -Uri $url -TimeoutSec 30 -UserAgent "Mozilla/5.0"
-                  $lines = $data -split "`n" | Where-Object { $_ -and $_ -notmatch "^#" }
-                  $count = 1
-                  return $lines | ForEach-Object { "$($_.Trim())#$($label)_$($count)"; $count++ }
-              } catch { return @() }
-          }
+          # --- CMCC-IP ---
+          curl -sSL https://cf.090227.xyz/cmcc?ips=5 | sed 's/#.*//' | awk 'NF {print $0 "#CMCC-IPv4_CMLiu_" NR}' > ./bestcf/cmcc-ip.txt
+          curl -sSL https://cf.090227.xyz/cmcc-ipv6 | sed 's/#.*//' | awk 'NF {print $0 "#CMCC-IPv6_CMLiu_" NR}' >> ./bestcf/cmcc-ip.txt
+          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.CM[].ip' | awk 'NF {print $0 "#CMCC-IPv4_VPS789_" NR}' >> ./bestcf/cmcc-ip.txt
+          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys"}' | jq -r '.info[] | select(.line == "CM") | .ip' | awk 'NF {print $0 "#CMCC-IPv4_CFYes_" NR}' >> ./bestcf/cmcc-ip.txt
+          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys","type":"v6"}' | jq -r '.info[] | select(.line == "CM") | .ip' | awk 'NF {print "["$0"]#CMCC-IPv6_CFYes_" NR}' >> ./bestcf/cmcc-ip.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/address_v4.html | awk '/移动/{getline; print}' | awk -F '[<>]' '{print $3}' | awk 'NF {print $0 "#CMCC-IPv4_WeTest_" NR}' >> ./bestcf/cmcc-ip.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/address_v6.html | awk '/移动/{getline; print}' | awk -F '[<>]' '{print $3}' | awk 'NF {print "["$0"]#CMCC-IPv6_WeTest_" NR}' >> ./bestcf/cmcc-ip.txt
 
-          # CMCC IP (v4 & v6)
-          $cmcc = Get-IPList "https://cf.090227.xyz/cmcc?ips=50" "CMCC-IPv4"
-          $cmcc += Get-IPList "https://cf.090227.xyz/cmcc-ipv6?ips=50" "CMCC-IPv6"
-          $cmcc | Out-File -FilePath "./bestcf/cmcc-ip.txt" -Encoding utf8
+          # --- CUCC-IP ---
+          curl -sSL https://cf.090227.xyz/cu?ips=5 | sed 's/#.*//' | awk 'NF {print $0 "#CUCC-IPv4_CMLiu_" NR}' > ./bestcf/cucc-ip.txt
+          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.CU[].ip' | awk 'NF {print $0 "#CUCC-IPv4_VPS789_" NR}' >> ./bestcf/cucc-ip.txt
+          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys"}' | jq -r '.info[] | select(.line == "CU") | .ip' | awk 'NF {print $0 "#CUCC-IPv4_CFYes_" NR}' >> ./bestcf/cucc-ip.txt
+          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys","type":"v6"}' | jq -r '.info[] | select(.line == "CU") | .ip' | awk 'NF {print "["$0"]#CUCC-IPv6_CFYes_" NR}' >> ./bestcf/cucc-ip.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/address_v4.html | awk '/联通/{getline; print}' | awk -F '[<>]' '{print $3}' | awk 'NF {print $0 "#CUCC-IPv4_WeTest_" NR}' >> ./bestcf/cucc-ip.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/address_v6.html | awk '/联通/{getline; print}' | awk -F '[<>]' '{print $3}' | awk 'NF {print "["$0"]#CUCC-IPv6_WeTest_" NR}' >> ./bestcf/cucc-ip.txt
 
-          # CUCC IP (v4 & v6)
-          $cucc = Get-IPList "https://cf.090227.xyz/cu?ips=50" "CUCC-IPv4"
-          $cucc += Get-IPList "https://cf.090227.xyz/cu-ipv6?ips=50" "CUCC-IPv6" # 补全接口
-          $cucc | Out-File -FilePath "./bestcf/cucc-ip.txt" -Encoding utf8
+          # --- CTCC-IP ---
+          curl -sSL https://cf.090227.xyz/ct?ips=5 | sed 's/#.*//' | awk 'NF {print $0 "#CTCC-IPv4_CMLiu_" NR}' > ./bestcf/ctcc-ip.txt
+          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.CT[].ip' | awk 'NF {print $0 "#CTCC-IPv4_VPS789_" NR}' >> ./bestcf/ctcc-ip.txt
+          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys"}' | jq -r '.info[] | select(.line == "CT") | .ip' | awk 'NF {print $0 "#CTCC-IPv4_CFYes_" NR}' >> ./bestcf/ctcc-ip.txt
+          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys","type":"v6"}' | jq -r '.info[] | select(.line == "CT") | .ip' | awk 'NF {print "["$0"]#CTCC-IPv6_CFYes_" NR}' >> ./bestcf/ctcc-ip.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/address_v4.html | awk '/电信/{getline; print}' | awk -F '[<>]' '{print $3}' | awk 'NF {print $0 "#CTCC-IPv4_WeTest_" NR}' >> ./bestcf/ctcc-ip.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/address_v6.html | awk '/电信/{getline; print}' | awk -F '[<>]' '{print $3}' | awk 'NF {print "["$0"]#CTCC-IPv6_WeTest_" NR}' >> ./bestcf/ctcc-ip.txt
 
-          # CTCC IP (v4 & v6)
-          $ctcc = Get-IPList "https://cf.090227.xyz/ct?ips=50" "CTCC-IPv4"
-          $ctcc += Get-IPList "https://cf.090227.xyz/ct-ipv6?ips=50" "CTCC-IPv6" # 补全接口
-          $ctcc | Out-File -FilePath "./bestcf/ctcc-ip.txt" -Encoding utf8
+          # --- CF-IP (Global Best) ---
+          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk 'NF {print $0 "#CF-IPv4_VPS789_" NR}' > ./bestcf/bestcf-ip.txt
+          curl -sSL https://ip.164746.xyz/ipTop10.html | tr ',' '\n' | head -n 5 | awk 'NF {print $0 "#CF-IPv4_CFSpeedTest_" NR}' >> ./bestcf/bestcf-ip.txt
+          curl -sSL https://ipdb.api.030101.xyz/?type=bestcfv4 | head -n 5 | awk 'NF {print $0 "#CF-IPv4_IPDB_" NR}' >> ./bestcf/bestcf-ip.txt
+          curl -sSL https://ipdb.api.030101.xyz/?type=bestcfv6 | head -n 5 | awk 'NF {print "["$0"]#CF-IPv6_IPDB_" NR}' >> ./bestcf/bestcf-ip.txt
 
-          # 全球混合优选
-          $best = Get-IPList "https://ipdb.api.030101.xyz/?type=bestcfv4" "CF-v4"
-          $best += Get-IPList "https://ipdb.api.030101.xyz/?type=bestcfv6" "CF-v6"
-          $best | Out-File -FilePath "./bestcf/bestcf-ip.txt" -Encoding utf8
+          # --- Proxy-IP ---
+          curl -sSL https://ipdb.api.030101.xyz/?type=bestproxy | head -n 5 | awk 'NF {print $0 "#Proxy-IPv4_IPDB_" NR}' > ./bestcf/proxy-ip.txt
 
       - name: Auto-Country Classification
         env:
           PYTHONIOENCODING: utf-8
-          # 核心：分类时必须禁用代理
           http_proxy: ""
           https_proxy: ""
-          no_proxy: "*"
         shell: powershell
         run: |
           if (Test-Path "filter.py") {
               & D:\Anaconda3\python.exe filter.py
-          } else {
-              Write-Error "filter.py not found!"
-              exit 1
           }
 
       - name: Git push to bestcf branch
-        shell: powershell
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cd ./bestcf
           git init
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # 设置推送专用代理
-          git config --local http.proxy "http://127.0.0.1:7897" 
-          git config --local https.proxy "http://127.0.0.1:7897"
+          # 如果自托管机器需要代理才能访问 GitHub
+          git config --local http.proxy "http://127.0.0.1:7897"
           git config --local http.sslBackend schannel
-          git config --local http.sslVerify "false"
           git checkout -b bestcf
           git add .
-          git commit -m "优选更新于 $($env:update_version)"
-          git push -f "https://$($env:GITHUB_ACTOR):$($env:GITHUB_TOKEN)@github.com/$($env:GITHUB_REPOSITORY).git" bestcf
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          git commit -m "优选更新于 ${{ env.update_version }}"
+          git push -f "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" bestcf
 
       - name: Create & Update GitHub Release
         uses: softprops/action-gh-release@v1
@@ -128,16 +117,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Keepalive (Heartbeat)
-        shell: powershell
+        shell: bash
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # 心跳同步也需要代理
           git config --local http.proxy "http://127.0.0.1:7897"
           git pull origin main --rebase
-          Get-Date | Out-File -FilePath "heartbeat.txt" -Encoding utf8
+          date > heartbeat.txt
           git add heartbeat.txt
-          git commit -m "Chore: Keepalive heartbeat $(Get-Date)"
+          git commit -m "Chore: Keepalive heartbeat $(date)"
           git push origin main
 
       - name: Delete old workflow runs
