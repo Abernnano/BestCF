@@ -30,6 +30,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Auto-Country Classification
+        env:
+          PYTHONIOENCODING: utf-8
+          # 强制在环境变量层面禁用代理
+          http_proxy: ""
+          https_proxy: ""
+          no_proxy: "*"
+        shell: powershell
+        run: |
+          if (Test-Path "filter.py") {
+              Write-Host "Running filter.py with Forced Direct Connection..."
+              # 再次确保没有任何残留文本在 filter.py 结尾
+              & D:\Anaconda3\python.exe filter.py
+          } else {
+              Write-Error "filter.py not found!"
+              exit 1
+          }
+
       - name: Prepare Directories
         shell: powershell
         run: |
