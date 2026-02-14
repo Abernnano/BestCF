@@ -5,115 +5,102 @@ on:
     - cron: "0 */12 * * *"
   push:
     branches: [ main ]
-    paths-ignore: [ "**/README.md", "heartbeat.txt" ]
+    paths-ignore: [ "**/README.md" ]
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: write
     steps:
-      - name: Git & Network Optimization
-        shell: bash
-        run: |
-          git config --global http.postBuffer 524288000
-          git config --global http.version HTTP/1.1
-          git config --global protocol.version 1
-          # 设置 Curl 通用环境变量，全局生效
-          echo "CURL_OPTS=-sSLk -4 --tls-max 1.2 --ssl-no-revoke --connect-timeout 20 --retry 5" >> $GITHUB_ENV
-
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
 
-      - name: Generate Raw Data
-        shell: bash
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Generate bestcf `Domain`
         run: |
-          echo "update_version=$(date +%Y-%m-%d)" >> ${GITHUB_ENV}
-          mkdir -p ./bestcf/ ./tmp/
-          
-          # 1. 抓取逻辑 (精简合并)
-          curl $CURL_OPTS https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./tmp/raw.txt || true
-          curl $CURL_OPTS https://vps789.com/openApi/cfIpTop20 | jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' >> ./tmp/raw.txt || true
-          cat ./tmp/raw.txt | grep -E 'cloudflare|cf' | sort -f -u > ./bestcf/bestcf-domain.txt
-          
-          # 2. 运营商 IP 抓取 (IPv4/IPv6 并行，移除中括号由 Python 处理)
-          curl $CURL_OPTS "https://cf.090227.xyz/cmcc?ips=50" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv4_" NR}' > ./bestcf/cmcc-ip.txt
-          curl $CURL_OPTS "https://cf.090227.xyz/cmcc-ipv6?ips=50" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv6_" NR}' >> ./bestcf/cmcc-ip.txt
-          curl $CURL_OPTS "https://cf.090227.xyz/cu?ips=50" | sed 's/#.*//' | awk '{print $0 "#CUCC-IPv4_" NR}' > ./bestcf/cucc-ip.txt
-          curl $CURL_OPTS "https://cf.090227.xyz/ct?ips=50" | sed 's/#.*//' | awk '{print $0 "#CTCC-IPv4_" NR}' > ./bestcf/ctcc-ip.txt
-          curl $CURL_OPTS https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk '{print $0 "#CF-IPv4_Avg_" NR}' > ./bestcf/bestcf-ip.txt
-          
+          echo "update_version=$(date -d '+8 hours' +%Y-%m-%d)" >> ${GITHUB_ENV}
+          mkdir -p ./tmp/ ./bestcf/
+          curl -sSL https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./tmp/temp-bestcf-domain.txt
+          curl -sSL https://cf.090227.xyz | sed -n '/<pre>/,/<\/pre>/p' | sed 's/<pre>//; s/<\/pre>//; s/^[ \t]*//; s/#.*//' >> ./tmp/temp-bestcf-domain.txt
+          curl -sSL https://vps789.com/openApi/cfIpTop20 | jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' >> ./tmp/temp-bestcf-domain.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/cname.html | awk '/4&amp;6/{print prev} {prev=$0}' | awk -F '[<>]' '{print $3}' | sed 's/\*/bestcf/' >> ./tmp/temp-bestcf-domain.txt
+          cat ./tmp/temp-bestcf-domain.txt | grep -E 'cloudflare|cf' | sort --ignore-case -u > ./bestcf/bestcf-domain.txt
           rm -rf ./tmp*
 
-      - name: Classification
-        run: pip install requests && python filter.py
-        env:
-          PYTHONIOENCODING: utf-8
-
-      - name: Push and Release
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Generate bestcf `IP`
         run: |
-          # --- A. 推送至 bestcf 分支 ---
-          cd ./bestcf/
+          # CMCC-IP
+          curl -sSL https://cf.090227.xyz/cmcc?ips=5 | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv4_CMLiu_" NR}' > ./bestcf/cmcc-ip.txt
+          curl -sSL https://cf.090227.xyz/cmcc-ipv6 | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv6_CMLiu_" NR}' >> ./bestcf/cmcc-ip.txt
+          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.CM[].ip' | awk '{print $0 "#CMCC-IPv4_VPS789_" NR}' >> ./bestcf/cmcc-ip.txt
+          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys"}' | jq -r '.info[] | select(.line == "CM") | .ip' | awk '{print $0 "#CMCC-IPv4_CFYes_" NR}' >> ./bestcf/cmcc-ip.txt
+          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys","type":"v6"}' | jq -r '.info[] | select(.line == "CM") | .ip' | awk '{print "["$0"]#CMCC-IPv6_CFYes_" NR}' >> ./bestcf/cmcc-ip.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/address_v4.html | awk '/移动/{getline; print}' | awk -F '[<>]' '{print $3}' | awk '{print $0 "#CMCC-IPv4_WeTest_" NR}' >> ./bestcf/cmcc-ip.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/address_v6.html | awk '/移动/{getline; print}' | awk -F '[<>]' '{print $3}' | awk '{print "["$0"]#CMCC-IPv6_WeTest_" NR}' >> ./bestcf/cmcc-ip.txt
+
+          # CUCC-IP
+          curl -sSL https://cf.090227.xyz/cu?ips=5 | sed 's/#.*//' | awk '{print $0 "#CUCC-IPv4_CMLiu_" NR}' > ./bestcf/cucc-ip.txt
+          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.CU[].ip' | awk '{print $0 "#CUCC-IPv4_VPS789_" NR}' >> ./bestcf/cucc-ip.txt
+          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys"}' | jq -r '.info[] | select(.line == "CU") | .ip' | awk '{print $0 "#CUCC-IPv4_CFYes_" NR}' >> ./bestcf/cucc-ip.txt
+          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys","type":"v6"}' | jq -r '.info[] | select(.line == "CU") | .ip' | awk '{print "["$0"]#CUCC-IPv6_CFYes_" NR}' >> ./bestcf/cucc-ip.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/address_v4.html | awk '/联通/{getline; print}' | awk -F '[<>]' '{print $3}' | awk '{print $0 "#CUCC-IPv4_WeTest_" NR}' >> ./bestcf/cucc-ip.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/address_v6.html | awk '/联通/{getline; print}' | awk -F '[<>]' '{print $3}' | awk '{print "["$0"]#CUCC-IPv6_WeTest_" NR}' >> ./bestcf/cucc-ip.txt
+
+          # CTCC-IP
+          curl -sSL https://cf.090227.xyz/ct?ips=5 | sed 's/#.*//' | awk '{print $0 "#CTCC-IPv4_CMLiu_" NR}' > ./bestcf/ctcc-ip.txt
+          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.CT[].ip' | awk '{print $0 "#CTCC-IPv4_VPS789_" NR}' >> ./bestcf/ctcc-ip.txt
+          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys"}' | jq -r '.info[] | select(.line == "CT") | .ip' | awk '{print $0 "#CTCC-IPv4_CFYes_" NR}' >> ./bestcf/ctcc-ip.txt
+          curl -sSL https://api.hostmonit.com/get_optimization_ip --data-raw '{"key":"iDetkOys","type":"v6"}' | jq -r '.info[] | select(.line == "CT") | .ip' | awk '{print "["$0"]#CTCC-IPv6_CFYes_" NR}' >> ./bestcf/ctcc-ip.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/address_v4.html | awk '/电信/{getline; print}' | awk -F '[<>]' '{print $3}' | awk '{print $0 "#CTCC-IPv4_WeTest_" NR}' >> ./bestcf/ctcc-ip.txt
+          curl -sSL https://www.wetest.vip/page/cloudflare/address_v6.html | awk '/电信/{getline; print}' | awk -F '[<>]' '{print $3}' | awk '{print "["$0"]#CTCC-IPv6_WeTest_" NR}' >> ./bestcf/ctcc-ip.txt
+
+          # CF-IP
+          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk '{print $0 "#CF-IPv4_VPS789_" NR}' > ./bestcf/bestcf-ip.txt
+          curl -sSL https://ip.164746.xyz/ipTop10.html | tr ',' '\n' | head -n 5 | awk '{print $0 "#CF-IPv4_CFSpeedTest_" NR}' >> ./bestcf/bestcf-ip.txt
+          curl -sSL https://ipdb.api.030101.xyz/?type=bestcfv4 | head -n 5 | awk '{print $0 "#CF-IPv4_IPDB_" NR}' >> ./bestcf/bestcf-ip.txt
+          curl -sSL https://ipdb.api.030101.xyz/?type=bestcfv6 | head -n 5 | awk '{print "["$0"]#CF-IPv6_IPDB_" NR}' >> ./bestcf/bestcf-ip.txt
+
+          # Proxy-IP
+          curl -sSL https://ipdb.api.030101.xyz/?type=bestproxy | head -n 5 | awk '{print $0 "#Proxy-IPv4_IPDB_" NR}' > ./bestcf/proxy-ip.txt
+
+      - name: Auto Classification (Cloud Filter)
+        run: python filter.py
+
+      - name: Release and upload `bestcf` assets
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          release_name: bestcf
+          tag: bestcf
+          overwrite: true
+          body: |
+            Cloudflare 优选域名和 IP 自动归类版
+            文件更新于 ${{ env.update_version }}
+          file_glob: true
+          file: ./bestcf/*
+
+      - name: Git push assets to `bestcf` branch
+        run: |
+          cd ./bestcf/ || exit 1
           git init
           git config --local user.name "github-actions[bot]"
-          git config user.email "actions@github.com"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b bestcf
-          git add .
-          git commit -m "Auto-update ${{ env.update_version }}"
+          git add . && git commit -m "Cloudflare 优选更新于 ${{ env.update_version }}"
           git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
           git push -f origin bestcf
-          
-          # --- B. 通过 Curl 实现 Release 逻辑 (无需安装 gh) ---
-          TAG="update-${{ env.update_version }}"
-          API_URL="https://api.github.com/repos/${{ github.repository }}"
-          
-          # 检查并创建 Release，获取 ID
-          REL_INFO=$(curl $CURL_OPTS -H "Authorization: token $GITHUB_TOKEN" "$API_URL/releases/tags/$TAG")
-          RELEASE_ID=$(echo "$REL_INFO" | jq -r '.id // empty')
-          
-          if [ -z "$RELEASE_ID" ]; then
-            echo "[*] Creating Release..."
-            RELEASE_ID=$(curl $CURL_OPTS -X POST -H "Authorization: token $GITHUB_TOKEN" \
-              -d "{\"tag_name\":\"$TAG\",\"title\":\"优选更新 - ${{ env.update_version }}\"}" \
-              "$API_URL/releases" | jq -r '.id')
-          fi
-          
-          # 获取现有 Asset 列表并覆盖上传
-          ASSETS=$(curl $CURL_OPTS -H "Authorization: token $GITHUB_TOKEN" "$API_URL/releases/$RELEASE_ID/assets")
-          for file in ./*.txt; do
-            filename=$(basename "$file")
-            ASSET_ID=$(echo "$ASSETS" | jq -r ".[] | select(.name==\"$filename\") | .id // empty")
-            [ -n "$ASSET_ID" ] && curl $CURL_OPTS -X DELETE -H "Authorization: token $GITHUB_TOKEN" "$API_URL/releases/assets/$ASSET_ID"
-            
-            echo "[*] Uploading $filename..."
-            curl $CURL_OPTS -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/octet-stream" \
-              --data-binary @"$file" "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$filename"
+
+      - name: Purge jsDelivr CDN
+        run: |
+          cd ./bestcf/ || exit 1
+          for file in $(ls); do
+            curl -i "https://purge.jsdelivr.net/gh/${{ github.repository }}@bestcf/${file}"
           done
-
-      - name: Keepalive
-        shell: bash
-        run: |
-          cd ..
-          git config --local user.name "github-actions[bot]"
-          echo "$(date)" > heartbeat.txt
-          git add heartbeat.txt
-          git commit -m "Keepalive" && git push origin main || true
-
-  retry_on_failure:
-    runs-on: ubuntu-latest
-    needs: build
-    if: failure()
-    steps:
-      - name: Wait and Re-run
-        run: |
-          sleep 1200
-          curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/workflows/generate_bestcf.yml/dispatches \
-            -d '{"ref":"main"}'
