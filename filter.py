@@ -101,7 +101,7 @@ jobs:
           files: |
             ./bestcf/*.txt
           body: |
-            Cloudflare 优选 IP 自动更新。
+            # Cloudflare 优选 IP 自动更新。
             更新时间：${{ env.update_version }} (UTC)
           draft: false
           prerelease: false
