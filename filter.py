@@ -1,65 +1,61 @@
 import os
 import re
-from qqwry import QQWry
+import IP2Location
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# --- 核心配置 ---
+# --- 配置 ---
 BASE_DIR = "./bestcf"
-DB_FILE = "qqwry.dat"
-# 严格排除不处理的文件
-EXCLUDE_FILES = ["proxy-ip.txt", "bestcf-domain.txt", "heartbeat.txt"]
+DB_FILE = "ip2location.bin"
+EXCLUDE_FILES = ["proxy-ip.txt", "bestcf-domain.txt"]
 
-# 加载数据库 (Binary Search Tree 结构)
-q = QQWry()
-q.load_file(DB_FILE)
+# 初始化 IP2Location 本地 API (采用高效的二进制搜索算法)
+database = IP2Location.IP2Location(os.path.join(os.getcwd(), DB_FILE))
 
-def get_location(ip_full):
-    # 彻底剥离端口和括号
+def get_pro_location(ip_full):
     ip = re.sub(r'\[|\]|:\d+$', '', ip_full).strip()
     try:
-        res = q.lookup(ip)
-        if res:
-            area, isp = res[0], res[1]
-            # 逻辑映射：将数据库描述转化为订阅转换能识别的关键词
-            code = "UN"
-            if "香港" in area: code = "HK"
-            elif any(x in area for x in ["美国", "圣何塞", "洛杉矶", "西雅图", "芝加哥"]): code = "US"
-            elif "日本" in area: code = "JP"
-            elif "台湾" in area: code = "TW"
-            elif "新加坡" in area: code = "SG"
-            elif "韩国" in area: code = "KR"
-            elif "欧洲" in area or any(x in area for x in ["德国", "法国", "英国"]): code = "EU"
-            
-            # 提取城市名，去除多余后缀
-            city = area.replace("省", "").replace("市", "").replace("自治区", "")
-            return f"{code}_{city}"
+        rec = database.get_all(ip)
+        country_code = rec.country_short
+        city = rec.city if rec.city != "-" else "Anycast"
+        
+        # --- 核心修复逻辑：大陆视角硬映射 ---
+        # 很多 CF 的 IP 虽然物理在香港，但数据库会标为 US。
+        # 我们根据常见的优选段进行关键词修正，确保触发你的 .ini 规则。
+        if country_code == "US":
+            # 如果是某些特定的香港 Anycast 段，强制修正
+            if ip.startswith(("104.16", "104.17", "172.64")):
+                country_code = "HK"
+                city = "香港"
+        
+        # 汉化映射，确保匹配你的订阅转换规则
+        city_map = {"San Jose": "圣何塞", "Los Angeles": "洛杉矶", "Hong Kong": "香港", 
+                    "Taipei": "台北", "Tokyo": "东京", "Singapore": "新加坡"}
+        city_cn = city_map.get(city, city).replace(" ", "")
+        
+        return f"{country_code}_{city_cn}"
     except:
-        pass
-    return "UN_Unknown"
+        return "UN_Unknown"
 
 def process_file(filename, summary_set):
     fpath = os.path.join(BASE_DIR, filename)
     if not os.path.exists(fpath) or filename in EXCLUDE_FILES:
         return
 
-    print(f"[*] 离线识别任务: {filename}")
+    print(f"[*] IP2Location 识别中: {filename}")
     with open(fpath, 'r', encoding='utf-8') as f:
         lines = [l.strip() for l in f.readlines() if l.strip()]
 
     new_results = []
-    # 离线查询极快，可提高并发
     with ThreadPoolExecutor(max_workers=20) as executor:
-        future_map = {executor.submit(get_location, l.split('#')[0]): l for l in lines}
+        future_map = {executor.submit(get_pro_location, line.split('#')[0]): line for line in lines}
         for future in as_completed(future_map):
             original = future_map[future]
             loc = future.result()
             
             ip_part = original.split('#')[0]
-            # 补全 IPv6 括号
-            if ":" in ip_part and not ip_part.startswith("["):
-                ip_part = f"[{ip_part}]"
-            
+            if ":" in ip_part and not ip_part.startswith("["): ip_part = f"[{ip_part}]"
             note = original.split('#')[1] if '#' in original else ""
+            
             final_line = f"{ip_part}#{loc}_{note}"
             new_results.append(final_line)
             summary_set.add(final_line)
@@ -73,11 +69,10 @@ def main():
     for f in files:
         process_file(f, summary_ips)
     
-    # 生成万能总表 all-countries-ip.txt
     if summary_ips:
         with open(os.path.join(BASE_DIR, "all-countries-ip.txt"), 'w', encoding='utf-8') as f:
             f.write('\n'.join(sorted(list(summary_ips))) + '\n')
-    print("[✓] 全球节点云端识别完成")
+    print("[✓] 全球识别任务完成")
 
 if __name__ == "__main__":
     main()
