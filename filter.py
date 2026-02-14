@@ -1,86 +1,110 @@
-import os, re, requests, time
+import os, re, requests, time, sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# --- 全球 98% 核心机房映射表 (涵盖你的订阅转换分组需求) ---
-COLO_MAP = {
-    # 亚太地区
-    "HKG": "HK_香港", "MFM": "MO_澳门", "TPE": "TW_台北", "KHH": "TW_高雄",
-    "SIN": "SG_新加坡", "NRT": "JP_东京", "HND": "JP_东京", "KIX": "JP_大阪",
-    "ICN": "KR_首尔", "BKK": "TH_曼谷", "KUL": "MY_吉隆坡", "SGN": "VN_胡志明",
-    "HAN": "VN_河内", "MNL": "PH_马尼拉", "CGK": "ID_雅加达", "SYD": "AU_悉尼",
-    # 北美地区
-    "SJC": "US_圣何塞", "LAX": "US_洛杉矶", "SFO": "US_旧金山", "SEA": "US_西雅图",
-    "ORD": "US_芝加哥", "DFW": "US_达拉斯", "IAD": "US_阿什本", "JFK": "US_纽约",
-    "ATL": "US_亚特兰大", "MIA": "US_迈阿密", "YYZ": "CA_多伦多", "YVR": "CA_温哥华",
-    # 欧洲地区
-    "FRA": "DE_法兰克福", "LHR": "GB_伦敦", "CDG": "FR_巴黎", "AMS": "NL_阿姆斯特丹",
-    "MRS": "FR_马赛", "MAD": "ES_马德里", "MXP": "IT_米兰", "ZRH": "CH_苏黎世",
-    # 其他
-    "DXB": "AE_迪拜", "JNB": "ZA_约翰内斯堡"
+# --- 1. 全球 98% 国家码 & 核心机房映射表 ---
+# 字典排序：具体城市 > 国家，确保圣何塞不会被误标为美国
+REGION_MAP = {
+    "香港": "HK_香港", "台湾": "TW_台湾", "澳门": "MO_澳门", "中国": "CN_中国",
+    "日本": "JP_日本", "韩国": "KR_韩国", "新加坡": "SG_新加坡", "越南": "VN_越南",
+    "泰国": "TH_泰国", "菲律宾": "PH_菲律宾", "马来西亚": "MY_马来西亚", "印尼": "ID_印尼",
+    "圣何塞": "US_圣何塞", "洛杉矶": "US_洛杉矶", "西雅图": "US_西雅图", "芝加哥": "US_芝加哥",
+    "纽约": "US_纽约", "多伦多": "CA_多伦多", "温哥华": "CA_温哥华", "法兰克福": "DE_法兰克福",
+    "伦敦": "GB_伦敦", "巴黎": "FR_巴黎", "荷兰": "NL_荷兰", "俄罗斯": "RU_俄罗斯",
+    "德国": "DE_德国", "英国": "GB_英国", "法国": "FR_法国", "美国": "US_美国",
+    "澳大利亚": "AU_澳洲", "悉尼": "AU_悉尼", "巴西": "BR_巴西", "迪拜": "AE_迪拜"
+    # 脚本会自动处理未匹配项为 UN_[API原词]
 }
 
 BASE_DIR = "./bestcf"
-EXCLUDE_FILES = ["proxy-ip.txt", "bestcf-domain.txt"]
+EXCLUDE_FILES = ["proxy-ip.txt", "bestcf-domain.txt", "heartbeat.txt"]
+# 大陆视角权威接口
+MAINLAND_API = "https://ip.zxinc.org/api.php?type=json&ip={}"
 
-def get_colo_info(ip_full):
-    # 剥离端口和中括号
-    ip = re.sub(r'\[|\]|:\d+$', '', ip_full).strip()
-    is_ipv6 = ":" in ip
-    url = f"http://[{ip}]/cdn-cgi/trace" if is_ipv6 else f"http://{ip}/cdn-cgi/trace"
-    
+def detect_runner_env():
+    """
+    第一步：识别本地网络环境 (Runner IP)
+    """
     try:
-        # 直接向优选IP发起请求，获取其真实的 Colo 机房代号
-        resp = requests.get(url, timeout=1.5)
-        if resp.status_code == 200:
-            m = re.search(r'colo=([A-Z]{3})', resp.text)
-            if m:
-                code = m.group(1)
-                return COLO_MAP.get(code, f"UN_{code}")
+        r = requests.get("https://api.ipify.org?format=json", timeout=5)
+        ip = r.json().get("ip")
+        # 识别该 IP 归属地
+        info = requests.get(f"http://ip-api.com/json/{ip}").json()
+        print(f"--- [自省系统] ---")
+        print(f"当前运行 IP: {ip}")
+        print(f"运行位置: {info.get('country')} - {info.get('city')}")
+        print(f"--- 开始切换【中国视角】探测 ---")
+    except:
+        print("[!] 无法识别本地环境，默认开启强制大陆视角模式")
+
+def get_location_by_china_api(ip_full):
+    """
+    第二步：通过大陆 API 识别目标优选 IP
+    """
+    ip = re.sub(r'\[|\]|:\d+$', '', ip_full).strip()
+    try:
+        # 使用国内镜像 API 绕过 GitHub 路由导致的阿什本偏差
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp = requests.get(MAINLAND_API.format(ip), headers=headers, timeout=6)
+        data = resp.json()
+        
+        if data.get('code') == 0:
+            addr = data.get('data', {}).get('location', '')
+            
+            # 匹配大字典
+            for key in REGION_MAP:
+                if key in addr:
+                    return REGION_MAP[key]
+            
+            # 兜底识别：如果没有匹配到，取 API 返回的前两个词
+            clean_addr = addr.replace(" ", "_").split("_")[0]
+            return f"UN_{clean_addr[:6]}"
     except:
         pass
     return "UN_Unknown"
 
 def process_file(filename, summary_set):
     fpath = os.path.join(BASE_DIR, filename)
-    if not os.path.exists(fpath) or filename in EXCLUDE_FILES:
-        return
+    if not os.path.exists(fpath) or filename in EXCLUDE_FILES: return
 
-    print(f"[*] 正在本地探测识别: {filename}")
+    print(f"[*] 正在处理: {filename}")
     with open(fpath, 'r', encoding='utf-8') as f:
         lines = [l.strip() for l in f.readlines() if l.strip()]
 
     new_results = []
-    # 使用 ThreadPoolExecutor 提升云端处理效率
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        future_map = {executor.submit(get_colo_info, l.split('#')[0]): l for l in lines}
+    # 限制并发数至 5，确保中国视角 API 不会重置连接
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_map = {executor.submit(get_location_by_china_api, l.split('#')[0]): l for l in lines}
         for future in as_completed(future_map):
             original = future_map[future]
-            loc = future.result()
+            loc_label = future.result()
             
             ip_part = original.split('#')[0]
+            # 修正 IPv6 括号格式
             if ":" in ip_part and not ip_part.startswith("["): ip_part = f"[{ip_part}]"
-            note = original.split('#')[1] if '#' in original else ""
             
-            # 格式：国家码_城市_原始备注
-            final_line = f"{ip_part}#{loc}_{note}"
+            note = original.split('#')[1] if '#' in original else ""
+            final_line = f"{ip_part}#{loc_label}_{note}"
             new_results.append(final_line)
             summary_set.add(final_line)
+            time.sleep(0.2) # 礼貌间隔
 
     with open(fpath, 'w', encoding='utf-8') as f:
         f.write('\n'.join(new_results) + '\n')
 
 def main():
     if not os.path.exists(BASE_DIR): os.makedirs(BASE_DIR)
+    
+    # 运行自省模块
+    detect_runner_perspective = detect_runner_env()
+    
     summary_ips = set()
     files = [f for f in os.listdir(BASE_DIR) if f.endswith('.txt')]
-    for f in files:
-        process_file(f, summary_ips)
+    for f in files: process_file(f, summary_ips)
     
-    # 生成汇总文件 all-countries-ip.txt 供订阅转换读取
     if summary_ips:
-        with open(os.path.join(BASE_DIR, "all-countries-ip.txt"), 'w', encoding='utf-8') as f:
+        with open(os.path.join(BASE_DIR, "all-countries-ip.txt"), "w", encoding="utf-8") as f:
             f.write('\n'.join(sorted(list(summary_ips))) + '\n')
-    print("[✓] 轻量化识别任务已完成")
+    print("[✓] 全球 98% 归属地识别任务完成")
 
 if __name__ == "__main__":
     main()
