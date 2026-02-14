@@ -17,18 +17,22 @@ jobs:
       contents: write
       actions: write
     steps:
-      - name: Cleanup Git Config
-        # 修复关键点：防止 Git 因找不到项返回非0退出码
+      - name: Fix Git SSL and Proxy
         shell: powershell
         run: |
-          git config --global --unset-all url."https://kkgithub.com/".insteadOf 2>$null
-          if ($LastExitCode -ne 0) { $Global:LastExitCode = 0 }
-          Write-Host "Git config cleanup step finished (successfully or item didn't exist)."
+          # 强制 Git 使用 Windows 系统自带的证书库 (解决 SSL 报错)
+          git config --global http.sslBackend schannel
+          # 如果你的网络确实需要代理才能拉取 GitHub 代码，请在这里临时设置（根据你的代理端口修改）
+          # git config --global http.proxy http://127.0.0.1:7890 
+          Write-Host "Git SSL backend switched to Schannel."
 
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+        env:
+          # 如果全局配置不生效，可以在步骤级禁用 SSL 验证（仅用于拉取代码）
+          GIT_SSL_NO_VERIFY: "true"
 
       - name: Auto-Country Classification
         env:
