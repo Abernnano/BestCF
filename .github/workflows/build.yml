@@ -6,48 +6,61 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "**/README.md"
 
 jobs:
   build:
-    # 关键修改：使用自建运行节点
-    runs-on: self-hosted 
+    runs-on: self-hosted
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Set up Python
-        # 如果你本地已经装了 Python，这一步可以省略，或者确保路径正确
+      - name: Optimize Network for China
         run: |
-          python3 --version || echo "Please install python3 on your local machine"
+          # 使用镜像源加速 Git 操作
+          git config --global url."https://github.moeyy.xyz/https://github.com/".insteadOf "https://github.com/"
 
-      - name: Install dependencies
-        run: pip3 install requests
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
 
       - name: Generate Raw Assets
         run: |
-          # 获取当前时间（本地时间）
           echo "update_version=$(date +%Y-%m-%d)" >> ${GITHUB_ENV}
           mkdir -p ./bestcf/
           
-          # 抓取逻辑（与之前一致）
-          curl -sSL https://cf.090227.xyz/cmcc?ips=5 | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv4"}' > ./bestcf/cmcc-ip.txt
-          curl -sSL https://cf.090227.xyz/cu?ips=5 | sed 's/#.*//' | awk '{print $0 "#CUCC-IPv4"}' > ./bestcf/cucc-ip.txt
-          curl -sSL https://cf.090227.xyz/ct?ips=5 | sed 's/#.*//' | awk '{print $0 "#CTCC-IPv4"}' > ./bestcf/ctcc-ip.txt
-          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk '{print $0 "#CF-IPv4"}' > ./bestcf/bestcf-ip.txt
+          # 1. 域名抓取
+          curl -sSL https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./bestcf/bestcf-domain.txt
+          
+          # 2. IP 抓取 (保持你原始逻辑，先生成临时带标签文件)
+          curl -sSL "https://cf.090227.xyz/cmcc?ips=5" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv4"}' > ./bestcf/cmcc-ip.txt
+          curl -sSL "https://cf.090227.xyz/cu?ips=5" | sed 's/#.*//' | awk '{print $0 "#CUCC-IPv4"}' > ./bestcf/cucc-ip.txt
+          curl -sSL "https://cf.090227.xyz/ct?ips=5" | sed 's/#.*//' | awk '{print $0 "#CTCC-IPv4"}' > ./bestcf/ctcc-ip.txt
+          
+          # 其他优选源
+          curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk '{print $0 "#CF-IPv4_VPS789"}' > ./bestcf/bestcf-ip.txt
+          
+          # Proxy IP (独立文件，不参与汇总)
+          curl -sSL "https://ipdb.api.030101.xyz/?type=bestproxy" | head -n 5 | awk '{print $0 "#Proxy-IPv4"}' > ./bestcf/proxy-ip.txt
 
-      - name: Detect Local Routing (Colo)
-        # 此时运行此脚本，发出的请求是从你家宽带出去的
-        run: python3 geoip_tool.py
-
-      - name: Aggregate All-in-one
+      - name: Local Detect Node (Colo)
         run: |
+          # 运行本地环境探测脚本
+          python3 geoip_tool.py
+
+      - name: Generate Combined All-IP File
+        run: |
+          # 汇总除 proxy 和 domain 以外的所有 IP
           cat ./bestcf/cmcc-ip.txt ./bestcf/cucc-ip.txt ./bestcf/ctcc-ip.txt ./bestcf/bestcf-ip.txt > ./bestcf/all-ip.txt
+          echo "汇总完成: all-ip.txt"
 
-      - name: Push results to GitHub
+      - name: Push to GitHub
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 这里使用标准的 git 推送逻辑
-          git config --local user.name "Local-Runner"
-          git config --local user.email "runner@local.com"
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "本地联动更新: ${update_version} (基于本地路由)"
-          git push origin main
+          git commit -m "本地联动更新: ${update_version} (基于本地路由)" || exit 0
+          # 使用镜像源进行推送
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" HEAD:main
