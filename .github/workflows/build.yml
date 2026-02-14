@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Cleanup Git Config
         # 解决之前提到的 kkgithub 镜像问题
-        shell: pwsh
+        shell: powershell
         run: |
           git config --global --unset-all url."https://kkgithub.com/".insteadOf 2>$null
           Write-Host "Git config cleaned."
@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
 
       - name: Prepare Directories
-        shell: pwsh
+        shell: powershell
         run: |
           if (!(Test-Path "./tmp")) { New-Item -ItemType Directory -Path "./tmp" }
           if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" }
@@ -38,7 +38,7 @@ jobs:
           echo "update_version=$version" >> $env:GITHUB_ENV
 
       - name: Generate bestcf `Domain`
-        shell: pwsh
+        shell: powershell
         run: |
           # 使用 Invoke-RestMethod (IRM) 替代 curl
           $domains = New-Object System.Collections.Generic.List[string]
@@ -56,7 +56,7 @@ jobs:
           $domains | Select-Object -Unique | Where-Object { $_ -match "cloudflare|cf" } | Out-File -FilePath "./bestcf/bestcf-domain.txt" -Encoding utf8
 
       - name: Generate bestcf `IP`
-        shell: pwsh
+        shell: powershell
         run: |
           # 定义下载函数以简化代码并增加容错
           function Get-IPList($url, $label) {
@@ -88,7 +88,7 @@ jobs:
       - name: Auto-Country Classification
         env:
           PYTHONIOENCODING: utf-8
-        shell: pwsh
+        shell: powershell
         run: |
           if (Test-Path "filter.py") {
               # 使用你本地的 Anaconda 路径
@@ -99,7 +99,7 @@ jobs:
           }
 
       - name: Git push to bestcf branch
-        shell: pwsh
+        shell: powershell
         run: |
           cd ./bestcf
           git init
@@ -125,7 +125,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Keepalive (Heartbeat)
-        shell: pwsh
+        shell: powershell
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
