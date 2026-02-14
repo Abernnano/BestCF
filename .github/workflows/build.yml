@@ -30,12 +30,12 @@ jobs:
           echo "update_version=$(date +%Y-%m-%d)" >> ${GITHUB_ENV}
           mkdir -p ./tmp/ ./bestcf/
           
-          # 抓取域名
+          # 1. 抓取域名
           curl $CURL_OPTS https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./tmp/raw.txt || true
           curl $CURL_OPTS https://vps789.com/openApi/cfIpTop20 | jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' >> ./tmp/raw.txt || true
           cat ./tmp/raw.txt | grep -E 'cloudflare|cf' | /usr/bin/sort -f -u > ./bestcf/bestcf-domain.txt
           
-          # 抓取运营商 IP (注意：移除 awk 里的中括号，统一由 Python 处理)
+          # 2. 抓取运营商 IP (注意：IPv6 保持原样，交给 Python 处理中括号)
           curl $CURL_OPTS "https://cf.090227.xyz/cmcc?ips=50" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv4_" NR}' > ./bestcf/cmcc-ip.txt
           curl $CURL_OPTS "https://cf.090227.xyz/cmcc-ipv6?ips=50" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv6_" NR}' >> ./bestcf/cmcc-ip.txt
           curl $CURL_OPTS "https://cf.090227.xyz/cu?ips=50" | sed 's/#.*//' | awk '{print $0 "#CUCC-IPv4_" NR}' > ./bestcf/cucc-ip.txt
@@ -61,30 +61,46 @@ jobs:
           git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
           git push -f origin bestcf
 
-      - name: Create & Update GitHub Release (Zero-Install Version)
+      - name: Create & Update GitHub Release (Overwrite Version)
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="update-${{ env.update_version }}"
           REPO="${{ github.repository }}"
+          API_URL="https://api.github.com/repos/$REPO"
           
           # 1. 获取或创建 Release ID
-          echo "[*] Checking Release..."
-          REL_INFO=$(curl -sSLk -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/$REPO/releases/tags/$TAG")
+          echo "[*] Checking Release: $TAG"
+          REL_INFO=$(curl -sSLk -H "Authorization: token $GITHUB_TOKEN" "$API_URL/releases/tags/$TAG")
           RELEASE_ID=$(echo "$REL_INFO" | jq -r '.id // empty')
 
           if [ -z "$RELEASE_ID" ]; then
-            echo "[*] Creating Release..."
+            echo "[*] Release not found, creating..."
             REL_DATA="{\"tag_name\":\"$TAG\",\"title\":\"优选更新 - ${{ env.update_version }}\",\"body\":\"自动更新于 $(date)\"}"
-            RELEASE_ID=$(curl -sSLk -X POST -H "Authorization: token $GITHUB_TOKEN" -d "$REL_DATA" "https://api.github.com/repos/$REPO/releases" | jq -r '.id')
+            RELEASE_ID=$(curl -sSLk -X POST -H "Authorization: token $GITHUB_TOKEN" -d "$REL_DATA" "$API_URL/releases" | jq -r '.id')
+          else
+            echo "[*] Found existing Release ID: $RELEASE_ID"
           fi
 
-          # 2. 逐个上传文件 (增加针对透明代理的优化)
+          # 2. 获取当前 Release 下的所有 Asset 列表，用于查重
+          ASSETS=$(curl -sSLk -H "Authorization: token $GITHUB_TOKEN" "$API_URL/releases/$RELEASE_ID/assets")
+
+          # 3. 逐个处理本地文件
           for file in ./bestcf/*.txt; do
             filename=$(basename "$file")
+            echo "-----------------------------------"
+            echo "[*] Processing $filename..."
+
+            ASSET_ID=$(echo "$ASSETS" | jq -r ".[] | select(.name==\"$filename\") | .id // empty")
+
+            if [ -n "$ASSET_ID" ]; then
+              echo "[!] Asset exists (ID: $ASSET_ID). Deleting..."
+              curl -sSLk -X DELETE -H "Authorization: token $GITHUB_TOKEN" "$API_URL/releases/assets/$ASSET_ID"
+              sleep 1
+            fi
+
             echo "[*] Uploading $filename..."
-            # 使用 -4 强制 IPv4 和 --tls-max 1.2 解决你的路由器握手报错
             curl -sSLk -4 --tls-max 1.2 -X POST \
               -H "Authorization: token $GITHUB_TOKEN" \
               -H "Content-Type: application/octet-stream" \
@@ -110,17 +126,16 @@ jobs:
           git add heartbeat.txt
           git commit -m "Keepalive" && git push origin main || echo "Nothing to push"
 
-  # --- 失败重试逻辑 ---
+  # --- 失败重试逻辑 (20分钟后重启) ---
   retry_on_failure:
     runs-on: ubuntu-latest
     needs: build
     if: failure()
     steps:
-      - name: Wait 20m and Retry
+      - name: Delay and Retry
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Build failed. Retrying in 20 minutes..."
           sleep 1200
           curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
