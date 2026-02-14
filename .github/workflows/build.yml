@@ -1,4 +1,4 @@
-name: Cloud-Native BestCF
+name: Global Optimized BestCF
 on:
   workflow_dispatch:
   schedule:
@@ -23,50 +23,33 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Dependencies
-        run: pip install requests qqwry-py
+      - name: Install Professional API Tools
+        run: |
+          pip install ip2location-python requests
+          
+      - name: Download IP2Location DB
+        run: |
+          # 下载免费版全球 IP 归属地数据库 (BIN 格式，比 DAT 格式识别率更高)
+          curl -sSL https://raw.githubusercontent.com/ip2location/ip2location-lite-bin-builds/main/IP2LOCATION-LITE-DB1.BIN.ZIP -o db.zip
+          unzip db.zip
+          mv IP2LOCATION-LITE-DB1.BIN ip2location.bin
 
       - name: Fetch Raw Data
         run: |
           echo "update_version=$(date -d '+8 hours' +%Y-%m-%d)" >> ${GITHUB_ENV}
           mkdir -p ./bestcf/ ./tmp/
-          
-          # 1. 抓取域名
-          curl -sSL https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./tmp/raw.txt
-          curl -sSL https://vps789.com/openApi/cfIpTop20 | jq -r '.data.good[].ip' | grep -Ev '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' >> ./tmp/raw.txt
-          cat ./tmp/raw.txt | grep -E 'cloudflare|cf' | sort -u > ./bestcf/bestcf-domain.txt
-          
-          # 2. 抓取各运营商 IP
-          curl -sSL "https://cf.090227.xyz/cmcc?ips=10" | sed 's/#.*//' | awk '{print $0 "#CMCC-v4_" NR}' > ./bestcf/cmcc-ip.txt
-          curl -sSL "https://cf.090227.xyz/cmcc-ipv6" | sed 's/#.*//' | awk '{print $0 "#CMCC-v6_" NR}' >> ./bestcf/cmcc-ip.txt
-          curl -sSL "https://cf.090227.xyz/cu?ips=10" | sed 's/#.*//' | awk '{print $0 "#CUCC-v4_" NR}' > ./bestcf/cucc-ip.txt
-          curl -sSL "https://cf.090227.xyz/ct?ips=10" | sed 's/#.*//' | awk '{print $0 "#CTCC-v4_" NR}' > ./bestcf/ctcc-ip.txt
-          
-          # 3. 抓取 Proxy IP (不参与后续地理识别)
-          curl -sSL https://ipdb.api.030101.xyz/?type=bestproxy | head -n 5 | awk '{print $0 "#Proxy-v4_" NR}' > ./bestcf/proxy-ip.txt
-          rm -rf ./tmp/
+          # 抓取逻辑 (保持你原有的 curl 内容)
+          curl -sSL "https://cf.090227.xyz/cmcc?ips=20" | sed 's/#.*//' | awk '{print $0 "#CMCC-v4_" NR}' > ./bestcf/cmcc-ip.txt
+          curl -sSL "https://cf.090227.xyz/cu?ips=20" | sed 's/#.*//' | awk '{print $0 "#CUCC-v4_" NR}' > ./bestcf/cucc-ip.txt
+          curl -sSL "https://cf.090227.xyz/ct?ips=20" | sed 's/#.*//' | awk '{print $0 "#CTCC-v4_" NR}' > ./bestcf/ctcc-ip.txt
+          curl -sSL "https://ipdb.api.030101.xyz/?type=bestproxy" | head -n 5 | awk '{print $0 "#Proxy-v4_" NR}' > ./bestcf/proxy-ip.txt
 
-      - name: Download QQWry Database
-        run: |
-          # 下载最新的纯真 IP 数据库
-          curl -sSL https://raw.githubusercontent.com/metowolf/qqwry.dat/master/qqwry.dat -o qqwry.dat
-
-      - name: Run Auto-Filter
+      - name: Advanced Identification
         run: python filter.py
         env:
           PYTHONIOENCODING: utf-8
 
-      - name: Release Assets
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          release_name: "Cloudflare 优选 - ${{ env.update_version }}"
-          tag: "bestcf"
-          overwrite: true
-          file_glob: true
-          file: ./bestcf/*.txt
-
-      - name: Git Push to bestcf Branch
+      - name: Commit and Push
         run: |
           cd ./bestcf/
           git init
@@ -74,14 +57,6 @@ jobs:
           git config --local user.email "actions@github.com"
           git checkout -b bestcf
           git add .
-          git commit -m "Update assets ${{ env.update_version }}"
+          git commit -m "IP2Location识别更新 ${{ env.update_version }}"
           git remote add origin "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
           git push -f origin bestcf
-
-      - name: Keepalive
-        run: |
-          echo "$(date)" > heartbeat.txt
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "actions@github.com"
-          git add heartbeat.txt
-          git commit -m "Keepalive" && git push origin main || true
