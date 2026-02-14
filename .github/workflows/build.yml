@@ -12,11 +12,18 @@ on:
 jobs:
   build:
     runs-on: self-hosted
+    # 强制所有步骤使用 bash，避免 Windows Powershell 语法冲突
+    defaults:
+      run:
+        shell: bash
+
     steps:
-      - name: Optimize Network for China
+      - name: Fix Git Safe Directory & Network
         run: |
-          # 使用镜像源加速 Git 操作
-          git config --global url."https://github.moeyy.xyz/https://github.com/".insteadOf "https://github.com/"
+          # 解决 Windows 权限导致的 safe.directory 问题
+          git config --global --add safe.directory "*"
+          # 换用更稳定的镜像站 (kkgithub.com 目前在大陆直连较好)
+          git config --global url."https://kkgithub.com/".insteadOf "https://github.com/"
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,30 +36,24 @@ jobs:
           echo "update_version=$(date +%Y-%m-%d)" >> ${GITHUB_ENV}
           mkdir -p ./bestcf/
           
-          # 1. 域名抓取
+          # 域名抓取
           curl -sSL https://cf.090227.xyz | grep 'copyDomain' | awk -F "'" '{print $2}' > ./bestcf/bestcf-domain.txt
           
-          # 2. IP 抓取 (保持你原始逻辑，先生成临时带标签文件)
+          # IP 抓取
           curl -sSL "https://cf.090227.xyz/cmcc?ips=5" | sed 's/#.*//' | awk '{print $0 "#CMCC-IPv4"}' > ./bestcf/cmcc-ip.txt
           curl -sSL "https://cf.090227.xyz/cu?ips=5" | sed 's/#.*//' | awk '{print $0 "#CUCC-IPv4"}' > ./bestcf/cucc-ip.txt
           curl -sSL "https://cf.090227.xyz/ct?ips=5" | sed 's/#.*//' | awk '{print $0 "#CTCC-IPv4"}' > ./bestcf/ctcc-ip.txt
-          
-          # 其他优选源
           curl -sSL https://vps789.com/openApi/cfIpApi | jq -r '.data.AllAvg[].ip' | awk '{print $0 "#CF-IPv4_VPS789"}' > ./bestcf/bestcf-ip.txt
-          
-          # Proxy IP (独立文件，不参与汇总)
           curl -sSL "https://ipdb.api.030101.xyz/?type=bestproxy" | head -n 5 | awk '{print $0 "#Proxy-IPv4"}' > ./bestcf/proxy-ip.txt
 
       - name: Local Detect Node (Colo)
-        run: |
-          # 运行本地环境探测脚本
-          python3 geoip_tool.py
+        run: python3 geoip_tool.py
 
       - name: Generate Combined All-IP File
         run: |
-          # 汇总除 proxy 和 domain 以外的所有 IP
+          # 汇总带节点标签的 IP
           cat ./bestcf/cmcc-ip.txt ./bestcf/cucc-ip.txt ./bestcf/ctcc-ip.txt ./bestcf/bestcf-ip.txt > ./bestcf/all-ip.txt
-          echo "汇总完成: all-ip.txt"
+          echo "All-in-one 文件生成完毕"
 
       - name: Push to GitHub
         env:
@@ -61,6 +62,6 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "本地联动更新: ${update_version} (基于本地路由)" || exit 0
-          # 使用镜像源进行推送
-          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" HEAD:main
+          git commit -m "本地联动更新: ${update_version}" || exit 0
+          # 推送也使用镜像站
+          git push "https://x-access-token:${GITHUB_TOKEN}@kkgithub.com/${{ github.repository }}.git" HEAD:main
