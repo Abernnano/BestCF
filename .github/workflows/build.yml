@@ -18,11 +18,12 @@ jobs:
       actions: write
     steps:
       - name: Cleanup Git Config
-        # 解决之前提到的 kkgithub 镜像问题
+        # 修复关键点：防止 Git 因找不到项返回非0退出码
         shell: powershell
         run: |
           git config --global --unset-all url."https://kkgithub.com/".insteadOf 2>$null
-          Write-Host "Git config cleaned."
+          if ($LastExitCode -ne 0) { $Global:LastExitCode = 0 }
+          Write-Host "Git config cleanup step finished (successfully or item didn't exist)."
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,56 +33,58 @@ jobs:
       - name: Prepare Directories
         shell: powershell
         run: |
-          if (!(Test-Path "./tmp")) { New-Item -ItemType Directory -Path "./tmp" }
-          if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" }
+          if (!(Test-Path "./tmp")) { New-Item -ItemType Directory -Path "./tmp" -Force }
+          if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" -Force }
           $version = Get-Date -Format "yyyy-MM-dd"
           echo "update_version=$version" >> $env:GITHUB_ENV
 
       - name: Generate bestcf `Domain`
         shell: powershell
         run: |
-          # 使用 Invoke-RestMethod (IRM) 替代 curl
           $domains = New-Object System.Collections.Generic.List[string]
           
           try {
-              $resp1 = Invoke-RestMethod -Uri "https://cf.090227.xyz" -UserAgent "Mozilla/5.0"
+              $resp1 = Invoke-RestMethod -Uri "https://cf.090227.xyz" -UserAgent "Mozilla/5.0" -TimeoutSec 20
               if ($resp1 -match "copyDomain\('(.+?)'\)") { $domains.Add($matches[1]) }
-          } catch { Write-Warning "Source 1 failed" }
+          } catch { Write-Warning "Source 1 (cf.090227.xyz) failed" }
 
           try {
-              $resp2 = Invoke-RestMethod -Uri "https://vps789.com/openApi/cfIpTop20"
+              $resp2 = Invoke-RestMethod -Uri "https://vps789.com/openApi/cfIpTop20" -TimeoutSec 20
               $resp2.data.good | ForEach-Object { if ($_.ip -notmatch "^\d+\.\d+\.\d+\.\d+$") { $domains.Add($_.ip) } }
-          } catch { Write-Warning "Source 2 failed" }
+          } catch { Write-Warning "Source 2 (vps789.com) failed" }
 
-          $domains | Select-Object -Unique | Where-Object { $_ -match "cloudflare|cf" } | Out-File -FilePath "./bestcf/bestcf-domain.txt" -Encoding utf8
+          if ($domains.Count -gt 0) {
+              $domains | Select-Object -Unique | Where-Object { $_ -match "cloudflare|cf" } | Out-File -FilePath "./bestcf/bestcf-domain.txt" -Encoding utf8
+          } else {
+              Write-Host "No domains found, creating empty file."
+              "" | Out-File -FilePath "./bestcf/bestcf-domain.txt" -Encoding utf8
+          }
 
       - name: Generate bestcf `IP`
         shell: powershell
         run: |
-          # 定义下载函数以简化代码并增加容错
           function Get-IPList($url, $label) {
               try {
-                  $data = Invoke-RestMethod -Uri $url -TimeoutSec 30
+                  $data = Invoke-RestMethod -Uri $url -TimeoutSec 30 -UserAgent "Mozilla/5.0"
                   $lines = $data -split "`n" | Where-Object { $_ -and $_ -notmatch "^#" }
                   $count = 1
                   return $lines | ForEach-Object { "$($_.Trim())#$($label)_$($count)"; $count++ }
-              } catch { return @() }
+              } catch { 
+                  Write-Warning "Failed to fetch $url"
+                  return @() 
+              }
           }
 
-          # CMCC
           $cmcc = Get-IPList "https://cf.090227.xyz/cmcc?ips=50" "CMCC-IPv4_CMLiu"
           $cmcc += Get-IPList "https://cf.090227.xyz/cmcc-ipv6?ips=50" "CMCC-IPv6_CMLiu"
           $cmcc | Out-File -FilePath "./bestcf/cmcc-ip.txt" -Encoding utf8
 
-          # CUCC
           $cucc = Get-IPList "https://cf.090227.xyz/cu?ips=50" "CUCC-IPv4_CMLiu"
           $cucc | Out-File -FilePath "./bestcf/cucc-ip.txt" -Encoding utf8
 
-          # CTCC
           $ctcc = Get-IPList "https://cf.090227.xyz/ct?ips=50" "CTCC-IPv4_CMLiu"
           $ctcc | Out-File -FilePath "./bestcf/ctcc-ip.txt" -Encoding utf8
 
-          # Global Best
           $best = Get-IPList "https://ipdb.api.030101.xyz/?type=bestcfv4" "CF-IPv4_IPDB"
           $best | Out-File -FilePath "./bestcf/bestcf-ip.txt" -Encoding utf8
 
@@ -91,10 +94,10 @@ jobs:
         shell: powershell
         run: |
           if (Test-Path "filter.py") {
-              # 使用你本地的 Anaconda 路径
+              Write-Host "Running filter.py using D:\Anaconda3\python.exe..."
               & D:\Anaconda3\python.exe filter.py
           } else {
-              Write-Error "filter.py not found!"
+              Write-Error "filter.py not found in working directory!"
               exit 1
           }
 
@@ -108,6 +111,7 @@ jobs:
           git checkout -b bestcf
           git add .
           git commit -m "优选更新于 $($env:update_version)"
+          # 强制推送到远程 bestcf 分支
           git push -f "https://$($env:GITHUB_ACTOR):$($env:GITHUB_TOKEN)@github.com/$($env:GITHUB_REPOSITORY).git" bestcf
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -129,7 +133,7 @@ jobs:
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          Get-Date | Out-File -FilePath "heartbeat.txt"
+          Get-Date | Out-File -FilePath "heartbeat.txt" -Encoding utf8
           git add heartbeat.txt
           git commit -m "Chore: Keepalive heartbeat $(Get-Date)"
           git push origin main
