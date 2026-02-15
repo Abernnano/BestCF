@@ -1,4 +1,4 @@
-name: Generate bestcf
+name: Generate bestcf (Enhanced & Fixed Encoding)
 on:
   workflow_dispatch:
   schedule:
@@ -25,9 +25,10 @@ jobs:
       - name: Initialize Environment
         shell: powershell
         run: |
-          # 彻底解决 PowerShell 输出流编码问题
-          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-          $OutputEncoding = [System.Text.Encoding]::UTF8
+          # 强制解决控制台乱码
+          chcp 65001
+          $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
+          [Console]::OutputEncoding = $Utf8NoBom
           
           if (!(Test-Path "./tmp")) { New-Item -ItemType Directory -Path "./tmp" -Force }
           if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" -Force }
@@ -36,15 +37,14 @@ jobs:
       - name: Generate bestcf `Domain`
         shell: powershell
         run: |
+          chcp 65001
           $domains = New-Object System.Collections.Generic.List[string]
           $ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
           # Source 1 & 2: cf.090227.xyz
           try {
               $html = Invoke-RestMethod -Uri "https://cf.090227.xyz" -UserAgent $ua
-              # 匹配 copyDomain('...')
               if ($html -match "copyDomain\('(.+?)'\)") { $domains.Add($matches[1]) }
-              # 匹配 <pre> 块中的内容
               if ($html -match "(?s)<pre>(.*?)</pre>") {
                   $preContent = $matches[1] -split "`n"
                   foreach ($line in $preContent) {
@@ -52,112 +52,143 @@ jobs:
                       if ($clean) { $domains.Add($clean) }
                   }
               }
-          } catch { Write-Warning "Source cf.090227.xyz failed" }
+          } catch { }
 
-          # Source 3: vps789.com (JSON)
+          # Source 3: vps789.com
           try {
               $json = Invoke-RestMethod -Uri "https://vps789.com/openApi/cfIpTop20" -UserAgent $ua
               foreach ($item in $json.data.good) {
                   if ($item.ip -notmatch "^\d+\.\d+\.\d+\.\d+$") { $domains.Add($item.ip) }
               }
-          } catch { Write-Warning "Source vps789.com failed" }
+          } catch { }
 
           # Source 4: wetest.vip
           try {
               $wetest = Invoke-WebRequest -Uri "https://www.wetest.vip/page/cloudflare/cname.html" -UserAgent $ua -UseBasicParsing
               $rows = $wetest.Content -split "<tr>"
               foreach ($row in $rows) {
-                  if ($row -match "4&amp;6") {
+                  if ($row -match "4&6") {
                       if ($row -match "<td>(.*?)</td>") { $domains.Add($matches[1].Replace("*", "bestcf")) }
                   }
               }
-          } catch { Write-Warning "Source wetest.vip failed" }
+          } catch { }
 
-          # 过滤并保存
           $domains | Where-Object { $_ -match "cloudflare|cf" } | Select-Object -Unique | Out-File -FilePath "./bestcf/bestcf-domain.txt" -Encoding utf8
 
       - name: Generate bestcf `IP`
         shell: powershell
         run: |
+          chcp 65001
           function Get-IPList {
               param($url, $label, $isV6 = $false, $postData = $null)
               $list = New-Object System.Collections.Generic.List[string]
               try {
-                  $resp = $null
+                  $ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
                   if ($postData) {
-                      $resp = Invoke-RestMethod -Uri $url -Method Post -Body $postData -ContentType "application/json"
+                      $resp = Invoke-RestMethod -Uri $url -Method Post -Body $postData -ContentType "application/json" -UserAgent $ua
                   } else {
-                      $resp = Invoke-RestMethod -Uri $url
+                      $resp = Invoke-RestMethod -Uri $url -UserAgent $ua
                   }
                   
                   $ips = @()
-                  if ($resp -is [string]) { $ips = $resp -split "`n" }
+                  if ($resp -is [string]) { $ips = $resp -split "[\n,]" } # 支持换行和逗号分隔
                   elseif ($resp.data.CM) { $ips = $resp.data.CM.ip; $label = "$($label)_VPS789" }
                   elseif ($resp.data.CU) { $ips = $resp.data.CU.ip; $label = "$($label)_VPS789" }
                   elseif ($resp.data.CT) { $ips = $resp.data.CT.ip; $label = "$($label)_VPS789" }
                   elseif ($resp.data.AllAvg) { $ips = $resp.data.AllAvg.ip; $label = "$($label)_VPS789" }
-                  elseif ($resp.info) { $ips = $resp.info | Where-Object { $_.line -match $label.Split('-')[0] } | Select-Object -ExpandProperty ip; $label = "$($label)_CFYes" }
+                  elseif ($resp.info) { 
+                      $ips = $resp.info | Where-Object { $_.line -match $label.Split('-')[0] } | Select-Object -ExpandProperty ip
+                      $label = "$($label)_CFYes" 
+                  }
 
                   $count = 1
                   foreach ($ip in $ips) {
-                      $cleanIp = $ip.Split('#')[0].Trim()
+                      $cleanIp = $ip.Split('#')[0].Trim().Replace("[","").Replace("]","")
                       if (!$cleanIp) { continue }
-                      if ($isV6 -and $cleanIp -notmatch "\[") { $cleanIp = "[$cleanIp]" }
+                      if ($isV6) { $cleanIp = "[$cleanIp]" }
                       $list.Add("$cleanIp#$($label)_$count")
-                      $count++
-                      if ($count -gt 10) { break } # 限制每个源的数量
+                      $count++; if ($count -gt 8) { break } 
                   }
               } catch { }
               return $list
           }
 
+          # 抓取 WeTest 网页中的 IP (针对 PowerShell 的 Regex 解析)
+          function Get-WeTestIP {
+              param($url, $keyword, $label, $isV6 = $false)
+              try {
+                  $html = (Invoke-WebRequest -Uri $url -UseBasicParsing).Content
+                  # 匹配关键词后的第一个 <td> 内容
+                  if ($html -match "$keyword.*?<td>(.*?)</td>") {
+                      $ip = $matches[1].Trim()
+                      if ($isV6) { $ip = "[$ip]" }
+                      return "$ip#$($label)_WeTest_1"
+                  }
+              } catch {}
+          }
+
+          # --- 执行抓取 ---
           # CMCC
           $cmcc = Get-IPList "https://cf.090227.xyz/cmcc?ips=5" "CMCC-IPv4_CMLiu"
           $cmcc += Get-IPList "https://cf.090227.xyz/cmcc-ipv6" "CMCC-IPv6_CMLiu" $true
-          $cmcc | Out-File -FilePath "./bestcf/cmcc-ip.txt" -Encoding utf8
+          $cmcc += Get-IPList "https://vps789.com/openApi/cfIpApi" "CMCC-IPv4" # 内部会自动分配标签
+          $cmcc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CM-IPv4" $false '{"key":"iDetkOys"}'
+          $cmcc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CM-IPv6" $true '{"key":"iDetkOys","type":"v6"}'
+          $cmcc += Get-WeTestIP "https://www.wetest.vip/page/cloudflare/address_v4.html" "移动" "CMCC-IPv4"
+          $cmcc += Get-WeTestIP "https://www.wetest.vip/page/cloudflare/address_v6.html" "移动" "CMCC-IPv6" $true
+          $cmcc | Where-Object {$_} | Out-File -FilePath "./bestcf/cmcc-ip.txt" -Encoding utf8
 
           # CUCC
           $cucc = Get-IPList "https://cf.090227.xyz/cu?ips=5" "CUCC-IPv4_CMLiu"
-          $cucc | Out-File -FilePath "./bestcf/cucc-ip.txt" -Encoding utf8
+          $cucc += Get-IPList "https://vps789.com/openApi/cfIpApi" "CUCC-IPv4"
+          $cucc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CU-IPv4" $false '{"key":"iDetkOys"}'
+          $cucc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CU-IPv6" $true '{"key":"iDetkOys","type":"v6"}'
+          $cucc += Get-WeTestIP "https://www.wetest.vip/page/cloudflare/address_v4.html" "联通" "CUCC-IPv4"
+          $cucc | Where-Object {$_} | Out-File -FilePath "./bestcf/cucc-ip.txt" -Encoding utf8
 
           # CTCC
           $ctcc = Get-IPList "https://cf.090227.xyz/ct?ips=5" "CTCC-IPv4_CMLiu"
-          $ctcc | Out-File -FilePath "./bestcf/ctcc-ip.txt" -Encoding utf8
+          $ctcc += Get-IPList "https://vps789.com/openApi/cfIpApi" "CTCC-IPv4"
+          $ctcc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CT-IPv4" $false '{"key":"iDetkOys"}'
+          $ctcc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CT-IPv6" $true '{"key":"iDetkOys","type":"v6"}'
+          $ctcc += Get-WeTestIP "https://www.wetest.vip/page/cloudflare/address_v4.html" "电信" "CTCC-IPv4"
+          $ctcc | Where-Object {$_} | Out-File -FilePath "./bestcf/ctcc-ip.txt" -Encoding utf8
 
-          # Global Best & Proxy
-          $best = Get-IPList "https://ipdb.api.030101.xyz/?type=bestcfv4" "CF-IPv4_IPDB"
+          # Global Best
+          $best = Get-IPList "https://vps789.com/openApi/cfIpApi" "CF-IPv4"
+          $best += Get-IPList "https://ip.164746.xyz/ipTop10.html" "CF-IPv4_CFSpeedTest"
+          $best += Get-IPList "https://ipdb.api.030101.xyz/?type=bestcfv4" "CF-IPv4_IPDB"
           $best += Get-IPList "https://ipdb.api.030101.xyz/?type=bestcfv6" "CF-IPv6_IPDB" $true
-          $best | Out-File -FilePath "./bestcf/bestcf-ip.txt" -Encoding utf8
-          
+          $best | Where-Object {$_} | Out-File -FilePath "./bestcf/bestcf-ip.txt" -Encoding utf8
+
           $proxy = Get-IPList "https://ipdb.api.030101.xyz/?type=bestproxy" "Proxy-IPv4_IPDB"
-          $proxy | Out-File -FilePath "./bestcf/proxy-ip.txt" -Encoding utf8
+          $proxy | Where-Object {$_} | Out-File -FilePath "./bestcf/proxy-ip.txt" -Encoding utf8
 
       - name: Auto-Country Classification
         env:
           PYTHONIOENCODING: utf-8
-          http_proxy: ""
-          https_proxy: ""
         shell: powershell
         run: |
-                # 1. 强制当前 PowerShell 窗口使用 UTF-8 代码页
-                chcp 65001
-                
-                # 2. 运行 Python 脚本
-                if (Test-Path "filter.py") {
-                    & D:\Anaconda3\python.exe filter.py
-                }
+          chcp 65001
+          if (Test-Path "filter.py") {
+              & D:\Anaconda3\python.exe filter.py
+          }
 
       - name: Git push to bestcf branch
         shell: powershell
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          chcp 65001
+          $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
+          [Console]::OutputEncoding = $Utf8NoBom
+          
           Set-Location ./bestcf
           git init
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local http.proxy "http://127.0.0.1:7897"
-          git config --local http.sslBackend schannel
+          git config --local i18n.commitencoding utf-8
           git checkout -b bestcf
           git add .
           git commit -m "优选更新于 $($env:update_version)"
@@ -176,9 +207,9 @@ jobs:
       - name: Keepalive (Heartbeat)
         shell: powershell
         run: |
+          chcp 65001
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local http.proxy "http://127.0.0.1:7897"
           git pull origin main --rebase
           Get-Date | Out-File -FilePath "heartbeat.txt" -Encoding utf8
           git add heartbeat.txt
