@@ -25,8 +25,10 @@ jobs:
       - name: Initialize Environment
         shell: powershell
         run: |
-          # 强制设置 UTF8 编码防止中文乱码
+          # 彻底解决 PowerShell 输出流编码问题
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
           $OutputEncoding = [System.Text.Encoding]::UTF8
+          
           if (!(Test-Path "./tmp")) { New-Item -ItemType Directory -Path "./tmp" -Force }
           if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" -Force }
           echo "update_version=$(Get-Date -Format 'yyyy-MM-dd')" >> $env:GITHUB_ENV
