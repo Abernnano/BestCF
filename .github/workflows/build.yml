@@ -139,9 +139,13 @@ jobs:
           https_proxy: ""
         shell: powershell
         run: |
-          if (Test-Path "filter.py") {
-              & D:\Anaconda3\python.exe filter.py
-          }
+                # 1. 强制当前 PowerShell 窗口使用 UTF-8 代码页
+                chcp 65001
+                
+                # 2. 运行 Python 脚本
+                if (Test-Path "filter.py") {
+                    & D:\Anaconda3\python.exe filter.py
+                }
 
       - name: Git push to bestcf branch
         shell: powershell
