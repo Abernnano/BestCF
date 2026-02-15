@@ -11,7 +11,9 @@ os.environ['HTTP_PROXY'] = ''
 os.environ['HTTPS_PROXY'] = ''
 
 if sys.platform.startswith('win'):
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    # 推荐改用这种方式，它能更好地处理现有的缓冲区
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stdin.reconfigure(encoding='utf-8')
 
 # --- 配置区 ---
 CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]
