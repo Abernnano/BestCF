@@ -1,4 +1,4 @@
-name: Generate bestcf (Enhanced & Fixed Encoding)
+name: Generate bestcf (GBK Optimized)
 on:
   workflow_dispatch:
   schedule:
@@ -25,23 +25,21 @@ jobs:
       - name: Initialize Environment
         shell: powershell
         run: |
-          # 强制解决控制台乱码
-          chcp 65001
-          $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
-          [Console]::OutputEncoding = $Utf8NoBom
-          
+          # 切换为 GBK 代码页
+          chcp 936
           if (!(Test-Path "./tmp")) { New-Item -ItemType Directory -Path "./tmp" -Force }
           if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" -Force }
+          # 设置更新日期变量
           echo "update_version=$(Get-Date -Format 'yyyy-MM-dd')" >> $env:GITHUB_ENV
 
       - name: Generate bestcf `Domain`
         shell: powershell
         run: |
-          chcp 65001
+          chcp 936
           $domains = New-Object System.Collections.Generic.List[string]
           $ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
-          # Source 1 & 2: cf.090227.xyz
+          # 抓取 cf.090227.xyz
           try {
               $html = Invoke-RestMethod -Uri "https://cf.090227.xyz" -UserAgent $ua
               if ($html -match "copyDomain\('(.+?)'\)") { $domains.Add($matches[1]) }
@@ -54,7 +52,7 @@ jobs:
               }
           } catch { }
 
-          # Source 3: vps789.com
+          # 抓取 vps789.com
           try {
               $json = Invoke-RestMethod -Uri "https://vps789.com/openApi/cfIpTop20" -UserAgent $ua
               foreach ($item in $json.data.good) {
@@ -62,7 +60,7 @@ jobs:
               }
           } catch { }
 
-          # Source 4: wetest.vip
+          # 抓取 wetest.vip
           try {
               $wetest = Invoke-WebRequest -Uri "https://www.wetest.vip/page/cloudflare/cname.html" -UserAgent $ua -UseBasicParsing
               $rows = $wetest.Content -split "<tr>"
@@ -73,12 +71,13 @@ jobs:
               }
           } catch { }
 
-          $domains | Where-Object { $_ -match "cloudflare|cf" } | Select-Object -Unique | Out-File -FilePath "./bestcf/bestcf-domain.txt" -Encoding utf8
+          # 保存为 GBK 编码
+          $domains | Where-Object { $_ -match "cloudflare|cf" } | Select-Object -Unique | Out-File -FilePath "./bestcf/bestcf-domain.txt" -Encoding default
 
       - name: Generate bestcf `IP`
         shell: powershell
         run: |
-          chcp 65001
+          chcp 936
           function Get-IPList {
               param($url, $label, $isV6 = $false, $postData = $null)
               $list = New-Object System.Collections.Generic.List[string]
@@ -91,14 +90,13 @@ jobs:
                   }
                   
                   $ips = @()
-                  if ($resp -is [string]) { $ips = $resp -split "[\n,]" } # 支持换行和逗号分隔
-                  elseif ($resp.data.CM) { $ips = $resp.data.CM.ip; $label = "$($label)_VPS789" }
-                  elseif ($resp.data.CU) { $ips = $resp.data.CU.ip; $label = "$($label)_VPS789" }
-                  elseif ($resp.data.CT) { $ips = $resp.data.CT.ip; $label = "$($label)_VPS789" }
-                  elseif ($resp.data.AllAvg) { $ips = $resp.data.AllAvg.ip; $label = "$($label)_VPS789" }
+                  if ($resp -is [string]) { $ips = $resp -split "[\n,]" } 
+                  elseif ($resp.data.CM) { $ips = $resp.data.CM.ip }
+                  elseif ($resp.data.CU) { $ips = $resp.data.CU.ip }
+                  elseif ($resp.data.CT) { $ips = $resp.data.CT.ip }
+                  elseif ($resp.data.AllAvg) { $ips = $resp.data.AllAvg.ip }
                   elseif ($resp.info) { 
                       $ips = $resp.info | Where-Object { $_.line -match $label.Split('-')[0] } | Select-Object -ExpandProperty ip
-                      $label = "$($label)_CFYes" 
                   }
 
                   $count = 1
@@ -113,12 +111,10 @@ jobs:
               return $list
           }
 
-          # 抓取 WeTest 网页中的 IP (针对 PowerShell 的 Regex 解析)
           function Get-WeTestIP {
               param($url, $keyword, $label, $isV6 = $false)
               try {
                   $html = (Invoke-WebRequest -Uri $url -UseBasicParsing).Content
-                  # 匹配关键词后的第一个 <td> 内容
                   if ($html -match "$keyword.*?<td>(.*?)</td>") {
                       $ip = $matches[1].Trim()
                       if ($isV6) { $ip = "[$ip]" }
@@ -127,50 +123,47 @@ jobs:
               } catch {}
           }
 
-          # --- 执行抓取 ---
-          # CMCC
+          # 移动源 (含 3 号代码全源)
           $cmcc = Get-IPList "https://cf.090227.xyz/cmcc?ips=5" "CMCC-IPv4_CMLiu"
           $cmcc += Get-IPList "https://cf.090227.xyz/cmcc-ipv6" "CMCC-IPv6_CMLiu" $true
-          $cmcc += Get-IPList "https://vps789.com/openApi/cfIpApi" "CMCC-IPv4" # 内部会自动分配标签
-          $cmcc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CM-IPv4" $false '{"key":"iDetkOys"}'
-          $cmcc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CM-IPv6" $true '{"key":"iDetkOys","type":"v6"}'
+          $cmcc += Get-IPList "https://vps789.com/openApi/cfIpApi" "CMCC-IPv4_VPS789"
+          $cmcc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CMCC-IPv4_CFYes" $false '{"key":"iDetkOys"}'
+          $cmcc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CMCC-IPv6_CFYes" $true '{"key":"iDetkOys","type":"v6"}'
           $cmcc += Get-WeTestIP "https://www.wetest.vip/page/cloudflare/address_v4.html" "移动" "CMCC-IPv4"
           $cmcc += Get-WeTestIP "https://www.wetest.vip/page/cloudflare/address_v6.html" "移动" "CMCC-IPv6" $true
-          $cmcc | Where-Object {$_} | Out-File -FilePath "./bestcf/cmcc-ip.txt" -Encoding utf8
+          $cmcc | Where-Object {$_} | Out-File -FilePath "./bestcf/cmcc-ip.txt" -Encoding default -Force
 
-          # CUCC
+          # 联通源
           $cucc = Get-IPList "https://cf.090227.xyz/cu?ips=5" "CUCC-IPv4_CMLiu"
-          $cucc += Get-IPList "https://vps789.com/openApi/cfIpApi" "CUCC-IPv4"
-          $cucc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CU-IPv4" $false '{"key":"iDetkOys"}'
-          $cucc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CU-IPv6" $true '{"key":"iDetkOys","type":"v6"}'
+          $cucc += Get-IPList "https://vps789.com/openApi/cfIpApi" "CUCC-IPv4_VPS789"
+          $cucc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CUCC-IPv4_CFYes" $false '{"key":"iDetkOys"}'
           $cucc += Get-WeTestIP "https://www.wetest.vip/page/cloudflare/address_v4.html" "联通" "CUCC-IPv4"
-          $cucc | Where-Object {$_} | Out-File -FilePath "./bestcf/cucc-ip.txt" -Encoding utf8
+          $cucc | Where-Object {$_} | Out-File -FilePath "./bestcf/cucc-ip.txt" -Encoding default -Force
 
-          # CTCC
+          # 电信源
           $ctcc = Get-IPList "https://cf.090227.xyz/ct?ips=5" "CTCC-IPv4_CMLiu"
-          $ctcc += Get-IPList "https://vps789.com/openApi/cfIpApi" "CTCC-IPv4"
-          $ctcc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CT-IPv4" $false '{"key":"iDetkOys"}'
-          $ctcc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CT-IPv6" $true '{"key":"iDetkOys","type":"v6"}'
+          $ctcc += Get-IPList "https://vps789.com/openApi/cfIpApi" "CTCC-IPv4_VPS789"
+          $ctcc += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CTCC-IPv4_CFYes" $false '{"key":"iDetkOys"}'
           $ctcc += Get-WeTestIP "https://www.wetest.vip/page/cloudflare/address_v4.html" "电信" "CTCC-IPv4"
-          $ctcc | Where-Object {$_} | Out-File -FilePath "./bestcf/ctcc-ip.txt" -Encoding utf8
+          $ctcc | Where-Object {$_} | Out-File -FilePath "./bestcf/ctcc-ip.txt" -Encoding default -Force
 
-          # Global Best
-          $best = Get-IPList "https://vps789.com/openApi/cfIpApi" "CF-IPv4"
+          # 全球优选
+          $best = Get-IPList "https://vps789.com/openApi/cfIpApi" "CF-IPv4_VPS789"
           $best += Get-IPList "https://ip.164746.xyz/ipTop10.html" "CF-IPv4_CFSpeedTest"
           $best += Get-IPList "https://ipdb.api.030101.xyz/?type=bestcfv4" "CF-IPv4_IPDB"
           $best += Get-IPList "https://ipdb.api.030101.xyz/?type=bestcfv6" "CF-IPv6_IPDB" $true
-          $best | Where-Object {$_} | Out-File -FilePath "./bestcf/bestcf-ip.txt" -Encoding utf8
+          $best | Where-Object {$_} | Out-File -FilePath "./bestcf/bestcf-ip.txt" -Encoding default -Force
 
+          # 代理源
           $proxy = Get-IPList "https://ipdb.api.030101.xyz/?type=bestproxy" "Proxy-IPv4_IPDB"
-          $proxy | Where-Object {$_} | Out-File -FilePath "./bestcf/proxy-ip.txt" -Encoding utf8
+          $proxy | Where-Object {$_} | Out-File -FilePath "./bestcf/proxy-ip.txt" -Encoding default -Force
 
       - name: Auto-Country Classification
-        env:
-          PYTHONIOENCODING: utf-8
         shell: powershell
         run: |
-          chcp 65001
+          chcp 936
           if (Test-Path "filter.py") {
+              # 如果 Python 脚本报错，尝试在调用前移除 PYTHONIOENCODING 环境变量
               & D:\Anaconda3\python.exe filter.py
           }
 
@@ -179,16 +172,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          chcp 65001
-          $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
-          [Console]::OutputEncoding = $Utf8NoBom
-          
+          chcp 936
           Set-Location ./bestcf
           git init
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local http.proxy "http://127.0.0.1:7897"
-          git config --local i18n.commitencoding utf-8
           git checkout -b bestcf
           git add .
           git commit -m "优选更新于 $($env:update_version)"
@@ -207,11 +196,11 @@ jobs:
       - name: Keepalive (Heartbeat)
         shell: powershell
         run: |
-          chcp 65001
+          chcp 936
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git pull origin main --rebase
-          Get-Date | Out-File -FilePath "heartbeat.txt" -Encoding utf8
+          Get-Date | Out-File -FilePath "heartbeat.txt" -Encoding default
           git add heartbeat.txt
           git commit -m "Chore: Keepalive heartbeat $(Get-Date)"
           git push origin main
