@@ -67,31 +67,31 @@ jobs:
               return $resList
           }
 
-          # 3. 执行抓取任务
+          # 3. 执行任务
           $cm = Get-IPList "https://cf.090227.xyz/cmcc?ips=5" "CMCC-IPv4"
           $cm += Get-IPList "https://cf.090227.xyz/cmcc-ipv6" "CMCC-IPv6" $true
           $cm += Get-IPList "https://vps789.com/openApi/cfIpApi" "CMCC-VPS789"
           $cm += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CM-CFYes" $false @{key="iDetkOys"}
           $cm += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CM-CFYesV6" $true @{key="iDetkOys";type="v6"}
-          $cm | Where-Object {$_} | Out-File "./bestcf/cmcc-ip.txt" -Encoding utf8 -Force
+          $cm | Where-Object {$_} | Out-File "./bestcf/cmcc-ip.txt" -Encoding default -Force
 
           $cu = Get-IPList "https://cf.090227.xyz/cu?ips=5" "CUCC-IPv4"
           $cu += Get-IPList "https://vps789.com/openApi/cfIpApi" "CUCC-VPS789"
           $cu += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CU-CFYes" $false @{key="iDetkOys"}
-          $cu | Where-Object {$_} | Out-File "./bestcf/cucc-ip.txt" -Encoding utf8 -Force
+          $cu | Where-Object {$_} | Out-File "./bestcf/cucc-ip.txt" -Encoding default -Force
 
           $ct = Get-IPList "https://cf.090227.xyz/ct?ips=5" "CTCC-IPv4"
           $ct += Get-IPList "https://vps789.com/openApi/cfIpApi" "CTCC-VPS789"
           $ct += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CT-CFYes" $false @{key="iDetkOys"}
-          $ct | Where-Object {$_} | Out-File "./bestcf/ctcc-ip.txt" -Encoding utf8 -Force
+          $ct | Where-Object {$_} | Out-File "./bestcf/ctcc-ip.txt" -Encoding default -Force
 
           $all = Get-IPList "https://ip.164746.xyz/ipTop10.html" "Global-SpeedTest"
           $all += Get-IPList "https://ipdb.api.030101.xyz/?type=bestcfv4" "Global-IPDB"
           $all += Get-IPList "https://ipdb.api.030101.xyz/?type=bestcfv6" "Global-IPDBV6" $true
-          $all | Where-Object {$_} | Out-File "./bestcf/bestcf-ip.txt" -Encoding utf8 -Force
+          $all | Where-Object {$_} | Out-File "./bestcf/bestcf-ip.txt" -Encoding default -Force
 
           $px = Get-IPList "https://ipdb.api.030101.xyz/?type=bestproxy" "Proxy-IPDB"
-          $px | Where-Object {$_} | Out-File "./bestcf/proxy-ip.txt" -Encoding utf8 -Force
+          $px | Where-Object {$_} | Out-File "./bestcf/proxy-ip.txt" -Encoding default -Force
 
       - name: Python Filter & Git Push
         shell: powershell
@@ -99,10 +99,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           chcp 936
-          # 清除可能存在的旧本地代理配置，防止其干扰
-          git config --local --unset http.proxy || $null
-          git config --local --unset https.proxy || $null
-          
           if (Test-Path "filter.py") { & D:\Anaconda3\python.exe filter.py }
           
           # 推送 bestcf 分支
@@ -110,6 +106,8 @@ jobs:
           git init
           git config --local user.name "github-actions[bot]"
           git config --local user.email "actions@github.com"
+          git config --local http.proxy "http://127.0.0.1:7897"
+          git config --local http.sslBackend schannel
           git checkout -b bestcf
           git add .
           git commit -m "优选更新于 $($env:update_version)"
@@ -128,11 +126,9 @@ jobs:
       - name: Keepalive (Heartbeat)
         shell: powershell
         run: |
-          # 清理主库可能存在的本地代理配置
-          git config --local --unset http.proxy || $null
-          
           git config --local user.name "github-actions[bot]"
           git config --local user.email "actions@github.com"
+          git config --local http.proxy "http://127.0.0.1:7897"
           git pull origin main --rebase
           Get-Date | Out-File -FilePath "heartbeat.txt" -Encoding utf8
           git add heartbeat.txt
