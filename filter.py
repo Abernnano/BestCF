@@ -2,11 +2,18 @@ import requests
 import re
 import os
 import sys
+import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# 解决 Windows 环境下的编码问题
+# 1. 强制直连：屏蔽系统代理
+os.environ['no_proxy'] = '*'
+os.environ['HTTP_PROXY'] = ''
+os.environ['HTTPS_PROXY'] = ''
+
 if sys.platform.startswith('win'):
+    # 推荐改用这种方式，它能更好地处理现有的缓冲区
     sys.stdout.reconfigure(encoding='utf-8')
+    sys.stdin.reconfigure(encoding='utf-8')
 
 # --- 配置区 ---
 CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]
@@ -14,22 +21,14 @@ BASE_DIR = "./bestcf"
 SUMMARY_FILE = "all-countries-ip.txt"
 MAX_WORKERS = 80 
 
-# Cloudflare 节点与国家代码映射
 COLO_MAP = {
     "HKG": "HK", "SIN": "SG", "NRT": "JP", "KIX": "JP", "ICN": "KR", "TPE": "TW",
     "LAX": "US", "SJC": "US", "SEA": "US", "SFO": "US", "FRA": "DE", "LHR": "GB",
     "CDG": "FR", "AMS": "NL", "IAD": "US", "ORD": "US", "DFW": "US", "EWR": "US"
 }
 
-# [重要] 1. 强制直连 Session：用于探测 CF 节点信息，必须绕过所有代理
-direct_session = requests.Session()
-direct_session.trust_env = False  # 禁用环境变量代理
-direct_session.proxies = {'http': None, 'https': None} # 显式设为空
-
-# [重要] 2. 正常 API Session：用于请求 ip-api.com，跟随系统/路由器代理
-api_session = requests.Session()
-api_session.trust_env = True 
-
+session = requests.Session()
+session.trust_env = False 
 headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
 def get_flag(country_code):
@@ -41,11 +40,10 @@ def get_ip_location(ip_line):
     clean_ip = raw_ip.replace('[', '').replace(']', '')
     is_ipv6 = ":" in clean_ip
     
-    # 步骤 A：直连探测（通过访问 CF 自身的 trace 接口获取 colo）
+    # 优先：直连探测
     trace_ip = f"[{clean_ip}]" if is_ipv6 else clean_ip
     try:
-        # 使用 direct_session 确保测到的是真实连接情况
-        resp = direct_session.get(f"http://{trace_ip}/cdn-cgi/trace", timeout=2, headers=headers)
+        resp = session.get(f"http://{trace_ip}/cdn-cgi/trace", timeout=2, verify=False, headers=headers)
         if resp.status_code == 200:
             colo = re.search(r'colo=([A-Z]{3})', resp.text)
             if colo:
@@ -53,10 +51,9 @@ def get_ip_location(ip_line):
     except:
         pass
 
-    # 步骤 B：保底 API（如果直连探测失败，使用第三方 API 查找）
+    # 保底：在线 API (处理本地无 v6 环境)
     try:
-        # 使用 api_session，如果路由器有代理，这里会自动走代理
-        resp = api_session.get(f"http://ip-api.com/json/{clean_ip}?fields=countryCode", timeout=3)
+        resp = session.get(f"http://ip-api.com/json/{clean_ip}?fields=countryCode", timeout=3)
         if resp.status_code == 200:
             return resp.json().get("countryCode")
     except:
@@ -66,7 +63,7 @@ def get_ip_location(ip_line):
 def process_file(filename, summary_set):
     path = os.path.join(BASE_DIR, filename)
     if not os.path.exists(path): return
-    print(f"[*] Analyzing: {filename}")
+    print(f"[*] Processing: {filename}")
     with open(path, 'r', encoding='utf-8') as f:
         lines = [l.strip() for l in f.readlines() if l.strip()]
 
@@ -84,7 +81,6 @@ def process_file(filename, summary_set):
                 categorized[tag].append(final)
                 summary_set.add(final)
 
-    # 写入分国家文件夹
     for tag, items in categorized.items():
         tag_dir = os.path.join(BASE_DIR, tag)
         os.makedirs(tag_dir, exist_ok=True)
@@ -98,7 +94,7 @@ def main():
     if summary:
         with open(os.path.join(BASE_DIR, SUMMARY_FILE), 'w', encoding='utf-8') as f:
             f.write('\n'.join(sorted(list(summary))) + '\n')
-    print("[SUCCESS] All IP filtered and categorized.")
+    print("[SUCCESS] Classification done.")
 
 if __name__ == "__main__":
     main()
