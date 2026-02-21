@@ -25,11 +25,11 @@ jobs:
       - name: Auto Detect Proxy
         shell: powershell
         run: |
-          # 定义可能的端口
+          # 1. 定义常用代理端口
           $ports = @(7890, 7897, 7888)
           $finalProxy = ""
 
-          # 1. 尝试本地回环
+          # 2. 优先探测本地 (电脑开启 Clash 时)
           foreach ($p in $ports) {
               $check = Test-NetConnection 127.0.0.1 -Port $p -WarningAction SilentlyContinue
               if ($check.TcpTestSucceeded) { 
@@ -38,10 +38,11 @@ jobs:
               }
           }
 
-          # 2. 如果本地没开，寻找路由器网关
+          # 3. 本地不通则探测网关 (路由器开启 ShellClash 时)
           if (-not $finalProxy) {
               $gateway = (Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Sort-Object RouteMetric | Select-Object -First 1).NextHop
               if ($gateway) {
+                  Write-Host "检测到网关 IP: $gateway"
                   foreach ($p in $ports) {
                       $check = Test-NetConnection $gateway -Port $p -WarningAction SilentlyContinue
                       if ($check.TcpTestSucceeded) { 
@@ -54,15 +55,30 @@ jobs:
 
           if ($finalProxy) {
               echo "GLOBAL_PROXY=$finalProxy" >> $env:GITHUB_ENV
-              Write-Host "成功探测到代理: $finalProxy"
+              Write-Host ">>> 代理探测成功: $finalProxy"
           } else {
-              Write-Host "未发现代理服务器，将使用直连模式"
+              Write-Host ">>> 未发现活动代理，将尝试直连。"
           }
 
       - name: Generate bestcf Data
         shell: powershell
         run: |
           chcp 936
+          # --- 解决 SSL 报错的核心逻辑 ---
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          $TrustPolicy = @"
+          using System.Net;
+          using System.Security.Cryptography.X509Certificates;
+          public class TrustAllCertsPolicy : ICertificatePolicy {
+              public bool CheckValidationResult(ServicePoint srvPoint, X509Certificate certificate, WebRequest request, int certificateProblem) {
+                  return true;
+              }
+          }
+"@
+          Add-Type -TypeDefinition $TrustPolicy
+          [Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+          # ------------------------------
+
           if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" -Force }
           $ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
           $date = Get-Date -Format "yyyy-MM-dd"
@@ -72,7 +88,7 @@ jobs:
               param($url, $label, $isV6 = $false, $postBody = $null)
               $resList = New-Object System.Collections.Generic.List[string]
               try {
-                  $params = @{ Uri = $url; UserAgent = $ua; TimeoutSec = 10 }
+                  $params = @{ Uri = $url; UserAgent = $ua; TimeoutSec = 15 }
                   if ($env:GLOBAL_PROXY) { $params.Proxy = $env:GLOBAL_PROXY }
                   
                   if ($postBody) {
@@ -84,11 +100,11 @@ jobs:
                   
                   $ips = @()
                   if ($resp -is [string]) { $ips = $resp -split "[\n,]" } 
-                  elif ($resp.data.CM) { $ips = $resp.data.CM.ip }
-                  elif ($resp.data.CU) { $ips = $resp.data.CU.ip }
-                  elif ($resp.data.CT) { $ips = $resp.data.CT.ip }
-                  elif ($resp.data.AllAvg) { $ips = $resp.data.AllAvg.ip }
-                  elif ($resp.info) { 
+                  elseif ($resp.data.CM) { $ips = $resp.data.CM.ip }
+                  elseif ($resp.data.CU) { $ips = $resp.data.CU.ip }
+                  elseif ($resp.data.CT) { $ips = $resp.data.CT.ip }
+                  elseif ($resp.data.AllAvg) { $ips = $resp.data.AllAvg.ip }
+                  elseif ($resp.info) { 
                       $lineTag = $label.Split('-')[0]
                       $ips = $resp.info | Where-Object { $_.line -match $lineTag } | Select-Object -ExpandProperty ip
                   }
@@ -101,11 +117,13 @@ jobs:
                       $resList.Add("$clean#$($label)_$idx")
                       $idx++; if ($idx -gt 8) { break }
                   }
-              } catch { Write-Warning "Failed to fetch $label : $($_.Exception.Message)" }
+              } catch { 
+                  Write-Warning "抓取失败 $label : $($_.Exception.Message)" 
+              }
               return $resList
           }
 
-          # 抓取逻辑（保持不变，底层已支持环境变量代理）
+          # 执行抓取
           $cm = Get-IPList "https://cf.090227.xyz/cmcc?ips=5" "CMCC-IPv4"
           $cm += Get-IPList "https://cf.090227.xyz/cmcc-ipv6" "CMCC-IPv6" $true
           $cm += Get-IPList "https://vps789.com/openApi/cfIpApi" "CMCC-VPS789"
