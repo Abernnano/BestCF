@@ -25,11 +25,11 @@ jobs:
       - name: Auto Detect Proxy
         shell: powershell
         run: |
-          # 1. 定义常用代理端口
+          # 定义 Clash 常用端口
           $ports = @(7890, 7897, 7888)
           $finalProxy = ""
 
-          # 2. 优先探测本地 (电脑开启 Clash 时)
+          # 1. 探测本地代理
           foreach ($p in $ports) {
               $check = Test-NetConnection 127.0.0.1 -Port $p -WarningAction SilentlyContinue
               if ($check.TcpTestSucceeded) { 
@@ -38,11 +38,10 @@ jobs:
               }
           }
 
-          # 3. 本地不通则探测网关 (路由器开启 ShellClash 时)
+          # 2. 如果本地没开，探测路由器网关代理
           if (-not $finalProxy) {
               $gateway = (Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Sort-Object RouteMetric | Select-Object -First 1).NextHop
               if ($gateway) {
-                  Write-Host "检测到网关 IP: $gateway"
                   foreach ($p in $ports) {
                       $check = Test-NetConnection $gateway -Port $p -WarningAction SilentlyContinue
                       if ($check.TcpTestSucceeded) { 
@@ -55,16 +54,17 @@ jobs:
 
           if ($finalProxy) {
               echo "GLOBAL_PROXY=$finalProxy" >> $env:GITHUB_ENV
-              Write-Host ">>> 代理探测成功: $finalProxy"
+              Write-Host "检测到活动代理: $finalProxy"
           } else {
-              Write-Host ">>> 未发现活动代理，将尝试直连。"
+              Write-Host "未检测到代理，将尝试直连"
           }
 
       - name: Generate bestcf Data
         shell: powershell
         run: |
           chcp 936
-          # --- 解决 SSL 报错的核心逻辑 ---
+          
+          # --- 核心修复：强制 TLS 1.2 并跳过证书检查 ---
           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
           $TrustPolicy = @"
           using System.Net;
@@ -77,7 +77,7 @@ jobs:
 "@
           Add-Type -TypeDefinition $TrustPolicy
           [Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-          # ------------------------------
+          # --------------------------------------------
 
           if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" -Force }
           $ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -99,6 +99,7 @@ jobs:
                   }
                   
                   $ips = @()
+                  # 修复 elif 语法错误 (PowerShell 必须用 elseif)
                   if ($resp -is [string]) { $ips = $resp -split "[\n,]" } 
                   elseif ($resp.data.CM) { $ips = $resp.data.CM.ip }
                   elseif ($resp.data.CU) { $ips = $resp.data.CU.ip }
@@ -118,12 +119,12 @@ jobs:
                       $idx++; if ($idx -gt 8) { break }
                   }
               } catch { 
-                  Write-Warning "抓取失败 $label : $($_.Exception.Message)" 
+                  Write-Warning "抓取 $label 失败: $($_.Exception.Message)" 
               }
               return $resList
           }
 
-          # 执行抓取
+          # 执行各线路任务
           $cm = Get-IPList "https://cf.090227.xyz/cmcc?ips=5" "CMCC-IPv4"
           $cm += Get-IPList "https://cf.090227.xyz/cmcc-ipv6" "CMCC-IPv6" $true
           $cm += Get-IPList "https://vps789.com/openApi/cfIpApi" "CMCC-VPS789"
@@ -183,10 +184,13 @@ jobs:
 
       - name: Keepalive (Heartbeat)
         shell: powershell
+        env:
+          HTTP_PROXY: ${{ env.GLOBAL_PROXY }}
+          HTTPS_PROXY: ${{ env.GLOBAL_PROXY }}
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "actions@github.com"
-          if ($env:GLOBAL_PROXY) { git config --local http.proxy "$env:GLOBAL_PROXY" }
+          if ($env:HTTP_PROXY) { git config --local http.proxy "$env:HTTP_PROXY" }
           git pull origin main --rebase
           Get-Date | Out-File -FilePath "heartbeat.txt" -Encoding utf8
           git add heartbeat.txt
