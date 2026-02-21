@@ -2,16 +2,17 @@ import requests
 import re
 import os
 import sys
-import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# --- 1. 环境自适应配置 ---
-# 不再强制屏蔽代理，而是依赖 YAML 传入的环境变量
+# 恢复：不再屏蔽代理，开启环境信任
+session = requests.Session()
+session.trust_env = True 
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
 if sys.platform.startswith('win'):
     sys.stdout.reconfigure(encoding='utf-8')
-    sys.stdin.reconfigure(encoding='utf-8')
 
-# --- 2. 配置区 ---
+# --- 完整配置区 ---
 CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]
 BASE_DIR = "./bestcf"
 SUMMARY_FILE = "all-countries-ip.txt"
@@ -23,39 +24,29 @@ COLO_MAP = {
     "CDG": "FR", "AMS": "NL", "IAD": "US", "ORD": "US", "DFW": "US", "EWR": "US"
 }
 
-# 开启 trust_env 以自动读取 HTTP_PROXY / HTTPS_PROXY
-session = requests.Session()
-session.trust_env = True  
-headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-
 def get_flag(country_code):
     if not country_code or len(country_code) != 2: return "🌐"
     return "".join(chr(127397 + ord(c)) for c in country_code.upper())
 
 def get_ip_location(ip_line):
-    raw_ip = ip_line.split('#')[0].strip()
-    clean_ip = raw_ip.replace('[', '').replace(']', '')
-    is_ipv6 = ":" in clean_ip
+    raw_ip = ip_line.split('#')[0].strip().replace('[', '').replace(']', '')
     
-    # 优先：探测 Cloudflare 节点名 (如果是透明代理，此请求会由代理处理)
-    trace_ip = f"[{clean_ip}]" if is_ipv6 else clean_ip
+    # 优先：直连/探测 CF 节点
     try:
-        # 注意：这里 verify=False 是为了防止代理环境下的 SSL 证书校验失败
-        resp = session.get(f"http://{trace_ip}/cdn-cgi/trace", timeout=2, headers=headers)
+        resp = session.get(f"http://{raw_ip}/cdn-cgi/trace", timeout=2)
         if resp.status_code == 200:
             colo = re.search(r'colo=([A-Z]{3})', resp.text)
             if colo:
-                return COLO_MAP.get(colo.group(1), colo.group(1))
-    except:
-        pass
+                code = colo.group(1)
+                return COLO_MAP.get(code, code)
+    except: pass
 
-    # 保底：在线 API (因为开启了 trust_env，这里会走路由器代理，解决 V6 连通性问题)
+    # 保底：在线 API (自动走代理)
     try:
-        resp = session.get(f"http://ip-api.com/json/{clean_ip}?fields=countryCode", timeout=3)
+        resp = session.get(f"http://ip-api.com/json/{raw_ip}?fields=countryCode", timeout=3)
         if resp.status_code == 200:
             return resp.json().get("countryCode")
-    except:
-        pass
+    except: pass
     return None
 
 def process_file(filename, summary_set):
@@ -73,10 +64,9 @@ def process_file(filename, summary_set):
             tag = f.result()
             if tag:
                 ip = line.split('#')[0].strip()
-                note = line.split('#')[1].strip() if '#' in line else "Worker"
+                note = line.split('#')[1].strip() if '#' in line else "Node"
                 final = f"{ip}#{get_flag(tag)} {tag} | {note}"
-                if tag not in categorized: categorized[tag] = []
-                categorized[tag].append(final)
+                categorized.setdefault(tag, []).append(final)
                 summary_set.add(final)
 
     for tag, items in categorized.items():
@@ -92,7 +82,7 @@ def main():
     if summary:
         with open(os.path.join(BASE_DIR, SUMMARY_FILE), 'w', encoding='utf-8') as f:
             f.write('\n'.join(sorted(list(summary))) + '\n')
-    print("[SUCCESS] Classification done.")
+    print("[SUCCESS] Classification complete.")
 
 if __name__ == "__main__":
     main()
