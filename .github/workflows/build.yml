@@ -25,11 +25,8 @@ jobs:
       - name: Auto Detect Proxy
         shell: powershell
         run: |
-          # 定义 Clash 常用端口
           $ports = @(7890, 7897, 7888)
           $finalProxy = ""
-
-          # 1. 探测本地代理
           foreach ($p in $ports) {
               $check = Test-NetConnection 127.0.0.1 -Port $p -WarningAction SilentlyContinue
               if ($check.TcpTestSucceeded) { 
@@ -37,8 +34,6 @@ jobs:
                   break 
               }
           }
-
-          # 2. 如果本地没开，探测路由器网关代理
           if (-not $finalProxy) {
               $gateway = (Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Sort-Object RouteMetric | Select-Object -First 1).NextHop
               if ($gateway) {
@@ -51,33 +46,27 @@ jobs:
                   }
               }
           }
-
           if ($finalProxy) {
               echo "GLOBAL_PROXY=$finalProxy" >> $env:GITHUB_ENV
-              Write-Host "检测到活动代理: $finalProxy"
-          } else {
-              Write-Host "未检测到代理，将尝试直连"
+              Write-Host "Detected Proxy: $finalProxy"
           }
 
       - name: Generate bestcf Data
         shell: powershell
         run: |
           chcp 936
-          
-          # --- 核心修复：强制 TLS 1.2 并跳过证书检查 ---
           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
           $TrustPolicy = @"
           using System.Net;
           using System.Security.Cryptography.X509Certificates;
           public class TrustAllCertsPolicy : ICertificatePolicy {
-              public bool CheckValidationResult(ServicePoint srvPoint, X509Certificate certificate, WebRequest request, int certificateProblem) {
+              public bool CheckValidationResult(ServicePoint srvPoint, X509Certificate cert, WebRequest req, int prob) {
                   return true;
               }
           }
 "@
           Add-Type -TypeDefinition $TrustPolicy
           [Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-          # --------------------------------------------
 
           if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" -Force }
           $ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -90,16 +79,13 @@ jobs:
               try {
                   $params = @{ Uri = $url; UserAgent = $ua; TimeoutSec = 15 }
                   if ($env:GLOBAL_PROXY) { $params.Proxy = $env:GLOBAL_PROXY }
-                  
                   if ($postBody) {
                       $json = $postBody | ConvertTo-Json -Compress
                       $resp = Invoke-RestMethod @params -Method Post -Body $json -ContentType "application/json"
                   } else {
                       $resp = Invoke-RestMethod @params
                   }
-                  
                   $ips = @()
-                  # 修复 elif 语法错误 (PowerShell 必须用 elseif)
                   if ($resp -is [string]) { $ips = $resp -split "[\n,]" } 
                   elseif ($resp.data.CM) { $ips = $resp.data.CM.ip }
                   elseif ($resp.data.CU) { $ips = $resp.data.CU.ip }
@@ -109,7 +95,6 @@ jobs:
                       $lineTag = $label.Split('-')[0]
                       $ips = $resp.info | Where-Object { $_.line -match $lineTag } | Select-Object -ExpandProperty ip
                   }
-
                   $idx = 1
                   foreach ($ip in $ips) {
                       $clean = $ip.Split('#')[0].Trim().Replace("[","").Replace("]","")
@@ -118,13 +103,10 @@ jobs:
                       $resList.Add("$clean#$($label)_$idx")
                       $idx++; if ($idx -gt 8) { break }
                   }
-              } catch { 
-                  Write-Warning "抓取 $label 失败: $($_.Exception.Message)" 
-              }
+              } catch { Write-Warning "Fetch $label Failed: $($_.Exception.Message)" }
               return $resList
           }
 
-          # 执行各线路任务
           $cm = Get-IPList "https://cf.090227.xyz/cmcc?ips=5" "CMCC-IPv4"
           $cm += Get-IPList "https://cf.090227.xyz/cmcc-ipv6" "CMCC-IPv6" $true
           $cm += Get-IPList "https://vps789.com/openApi/cfIpApi" "CMCC-VPS789"
@@ -158,7 +140,6 @@ jobs:
         run: |
           chcp 936
           if (Test-Path "filter.py") { & D:\Anaconda3\python.exe filter.py }
-          
           Set-Location ./bestcf
           git init
           git config --local user.name "github-actions[bot]"
@@ -169,20 +150,19 @@ jobs:
           }
           git checkout -b bestcf
           git add .
-          git commit -m "优选更新于 $($env:update_version)"
+          git commit -m "Update: $($env:update_version)"
           git push -f "https://$($env:GITHUB_ACTOR):$($env:GITHUB_TOKEN)@github.com/$($env:GITHUB_REPOSITORY).git" bestcf
 
-      - name: Create & Update GitHub Release
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: update-${{ env.update_version }}
-          name: 优选更新 - ${{ env.update_version }}
+          name: Update - ${{ env.update_version }}
           files: ./bestcf/*.txt
-          body: "Cloudflare 优选数据自动更新。时间: ${{ env.update_version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Keepalive (Heartbeat)
+      - name: Keepalive
         shell: powershell
         env:
           HTTP_PROXY: ${{ env.GLOBAL_PROXY }}
@@ -194,10 +174,10 @@ jobs:
           git pull origin main --rebase
           Get-Date | Out-File -FilePath "heartbeat.txt" -Encoding utf8
           git add heartbeat.txt
-          git commit -m "Chore: Keepalive heartbeat $(Get-Date)"
+          git commit -m "Keepalive $(Get-Date)"
           git push origin main
 
-      - name: Cleanup Runs
+      - name: Cleanup
         uses: Mattraks/delete-workflow-runs@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
