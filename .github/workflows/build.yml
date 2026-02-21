@@ -1,11 +1,11 @@
 name: Generate bestcf (Full Version)
+
 on:
   workflow_dispatch:
   schedule:
     - cron: "0 */12 * * *"
   push:
-    branches:
-      - main
+    branches: [ main ]
     paths-ignore:
       - "**/README.md"
       - "heartbeat.txt"
@@ -16,97 +16,95 @@ jobs:
     permissions:
       contents: write
       actions: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Auto Detect Proxy
+      - name: Setup Environment and Proxy
         shell: powershell
         run: |
+          # 1. 强制 TLS 1.2
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          
+          # 2. 自动探测代理端口
           $ports = @(7890, 7897, 7888)
           $finalProxy = ""
-          foreach ($p in $ports) {
-              $check = Test-NetConnection 127.0.0.1 -Port $p -WarningAction SilentlyContinue
-              if ($check.TcpTestSucceeded) { 
-                  $finalProxy = "http://127.0.0.1:$p"
-                  break 
-              }
-          }
-          if (-not $finalProxy) {
-              $gateway = (Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Sort-Object RouteMetric | Select-Object -First 1).NextHop
-              if ($gateway) {
-                  foreach ($p in $ports) {
-                      $check = Test-NetConnection $gateway -Port $p -WarningAction SilentlyContinue
-                      if ($check.TcpTestSucceeded) { 
-                          $finalProxy = "http://$($gateway):$p"
-                          break 
-                      }
+          
+          # 先探测本地，再探测网关
+          $targets = @("127.0.0.1")
+          $gw = (Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Sort-Object RouteMetric | Select-Object -First 1).NextHop
+          if ($gw) { $targets += $gw }
+
+          foreach ($t in $targets) {
+              foreach ($p in $ports) {
+                  $res = Test-NetConnection $t -Port $p -WarningAction SilentlyContinue
+                  if ($res.TcpTestSucceeded) {
+                      $finalProxy = "http://$($t):$p"
+                      break
                   }
               }
+              if ($finalProxy) { break }
           }
+
           if ($finalProxy) {
+              Write-Host "Found Proxy: $finalProxy"
               echo "GLOBAL_PROXY=$finalProxy" >> $env:GITHUB_ENV
-              Write-Host "Detected Proxy: $finalProxy"
           }
+
+          # 3. 设置版本号
+          $v = Get-Date -Format "yyyy-MM-dd"
+          echo "update_version=$v" >> $env:GITHUB_ENV
 
       - name: Generate bestcf Data
         shell: powershell
         run: |
           chcp 936
-          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-          $TrustPolicy = @"
-          using System.Net;
-          using System.Security.Cryptography.X509Certificates;
-          public class TrustAllCertsPolicy : ICertificatePolicy {
-              public bool CheckValidationResult(ServicePoint srvPoint, X509Certificate cert, WebRequest req, int prob) {
-                  return true;
-              }
-          }
-"@
-          Add-Type -TypeDefinition $TrustPolicy
-          [Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-
           if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" -Force }
-          $ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-          $date = Get-Date -Format "yyyy-MM-dd"
-          echo "update_version=$date" >> $env:GITHUB_ENV
 
+          # 核心抓取函数
           function Get-IPList {
               param($url, $label, $isV6 = $false, $postBody = $null)
               $resList = New-Object System.Collections.Generic.List[string]
               try {
-                  $params = @{ Uri = $url; UserAgent = $ua; TimeoutSec = 15 }
+                  $params = @{ Uri = $url; UserAgent = "Mozilla/5.0"; TimeoutSec = 20 }
                   if ($env:GLOBAL_PROXY) { $params.Proxy = $env:GLOBAL_PROXY }
+                  
                   if ($postBody) {
                       $json = $postBody | ConvertTo-Json -Compress
                       $resp = Invoke-RestMethod @params -Method Post -Body $json -ContentType "application/json"
                   } else {
                       $resp = Invoke-RestMethod @params
                   }
+
                   $ips = @()
-                  if ($resp -is [string]) { $ips = $resp -split "[\n,]" } 
+                  if ($resp -is [string]) { $ips = $resp -split "[\n,]" }
                   elseif ($resp.data.CM) { $ips = $resp.data.CM.ip }
                   elseif ($resp.data.CU) { $ips = $resp.data.CU.ip }
                   elseif ($resp.data.CT) { $ips = $resp.data.CT.ip }
                   elseif ($resp.data.AllAvg) { $ips = $resp.data.AllAvg.ip }
-                  elseif ($resp.info) { 
-                      $lineTag = $label.Split('-')[0]
-                      $ips = $resp.info | Where-Object { $_.line -match $lineTag } | Select-Object -ExpandProperty ip
+                  elseif ($resp.info) {
+                      $tag = $label.Split('-')[0]
+                      $ips = $resp.info | Where-Object { $_.line -match $tag } | Select-Object -ExpandProperty ip
                   }
-                  $idx = 1
+
+                  $i = 1
                   foreach ($ip in $ips) {
                       $clean = $ip.Split('#')[0].Trim().Replace("[","").Replace("]","")
                       if (!$clean) { continue }
                       if ($isV6) { $clean = "[$clean]" }
-                      $resList.Add("$clean#$($label)_$idx")
-                      $idx++; if ($idx -gt 8) { break }
+                      $resList.Add("$clean#$($label)_$i")
+                      $i++; if ($i -gt 8) { break }
                   }
-              } catch { Write-Warning "Fetch $label Failed: $($_.Exception.Message)" }
+              } catch {
+                  Write-Warning "Failed $label : $($_.Exception.Message)"
+              }
               return $resList
           }
 
+          # 线路抓取任务
           $cm = Get-IPList "https://cf.090227.xyz/cmcc?ips=5" "CMCC-IPv4"
           $cm += Get-IPList "https://cf.090227.xyz/cmcc-ipv6" "CMCC-IPv6" $true
           $cm += Get-IPList "https://vps789.com/openApi/cfIpApi" "CMCC-VPS789"
@@ -131,33 +129,34 @@ jobs:
           $px = Get-IPList "https://ipdb.api.030101.xyz/?type=bestproxy" "Proxy-IPDB"
           $px | Where-Object {$_} | Out-File "./bestcf/proxy-ip.txt" -Encoding utf8 -Force
 
-      - name: Python Filter & Git Push
+      - name: Run Filter and Push
         shell: powershell
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HTTP_PROXY: ${{ env.GLOBAL_PROXY }}
           HTTPS_PROXY: ${{ env.GLOBAL_PROXY }}
         run: |
-          chcp 936
+          # 运行 Python 过滤
           if (Test-Path "filter.py") { & D:\Anaconda3\python.exe filter.py }
+
+          # Git 操作
           Set-Location ./bestcf
           git init
           git config --local user.name "github-actions[bot]"
           git config --local user.email "actions@github.com"
           if ($env:HTTP_PROXY) {
               git config --local http.proxy "$env:HTTP_PROXY"
-              git config --local http.sslBackend schannel
           }
           git checkout -b bestcf
           git add .
-          git commit -m "Update: $($env:update_version)"
+          git commit -m "Auto Update $($env:update_version)"
           git push -f "https://$($env:GITHUB_ACTOR):$($env:GITHUB_TOKEN)@github.com/$($env:GITHUB_REPOSITORY).git" bestcf
 
-      - name: Create Release
+      - name: Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: update-${{ env.update_version }}
-          name: Update - ${{ env.update_version }}
+          name: Update ${{ env.update_version }}
           files: ./bestcf/*.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -166,7 +165,6 @@ jobs:
         shell: powershell
         env:
           HTTP_PROXY: ${{ env.GLOBAL_PROXY }}
-          HTTPS_PROXY: ${{ env.GLOBAL_PROXY }}
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "actions@github.com"
@@ -176,11 +174,3 @@ jobs:
           git add heartbeat.txt
           git commit -m "Keepalive $(Get-Date)"
           git push origin main
-
-      - name: Cleanup
-        uses: Mattraks/delete-workflow-runs@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          retain_days: 1
-          keep_minimum_runs: 1
