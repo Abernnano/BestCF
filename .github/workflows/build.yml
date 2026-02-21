@@ -22,35 +22,73 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Auto Detect Proxy
+        shell: powershell
+        run: |
+          # 定义可能的端口
+          $ports = @(7890, 7897, 7888)
+          $finalProxy = ""
+
+          # 1. 尝试本地回环
+          foreach ($p in $ports) {
+              $check = Test-NetConnection 127.0.0.1 -Port $p -WarningAction SilentlyContinue
+              if ($check.TcpTestSucceeded) { 
+                  $finalProxy = "http://127.0.0.1:$p"
+                  break 
+              }
+          }
+
+          # 2. 如果本地没开，寻找路由器网关
+          if (-not $finalProxy) {
+              $gateway = (Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Sort-Object RouteMetric | Select-Object -First 1).NextHop
+              if ($gateway) {
+                  foreach ($p in $ports) {
+                      $check = Test-NetConnection $gateway -Port $p -WarningAction SilentlyContinue
+                      if ($check.TcpTestSucceeded) { 
+                          $finalProxy = "http://$($gateway):$p"
+                          break 
+                      }
+                  }
+              }
+          }
+
+          if ($finalProxy) {
+              echo "GLOBAL_PROXY=$finalProxy" >> $env:GITHUB_ENV
+              Write-Host "成功探测到代理: $finalProxy"
+          } else {
+              Write-Host "未发现代理服务器，将使用直连模式"
+          }
+
       - name: Generate bestcf Data
         shell: powershell
         run: |
-          # 1. 环境初始化
           chcp 936
           if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" -Force }
           $ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
           $date = Get-Date -Format "yyyy-MM-dd"
           echo "update_version=$date" >> $env:GITHUB_ENV
 
-          # 2. 定义核心抓取函数
           function Get-IPList {
               param($url, $label, $isV6 = $false, $postBody = $null)
               $resList = New-Object System.Collections.Generic.List[string]
               try {
+                  $params = @{ Uri = $url; UserAgent = $ua; TimeoutSec = 10 }
+                  if ($env:GLOBAL_PROXY) { $params.Proxy = $env:GLOBAL_PROXY }
+                  
                   if ($postBody) {
                       $json = $postBody | ConvertTo-Json -Compress
-                      $resp = Invoke-RestMethod -Uri $url -Method Post -Body $json -ContentType "application/json" -UserAgent $ua
+                      $resp = Invoke-RestMethod @params -Method Post -Body $json -ContentType "application/json"
                   } else {
-                      $resp = Invoke-RestMethod -Uri $url -UserAgent $ua
+                      $resp = Invoke-RestMethod @params
                   }
                   
                   $ips = @()
                   if ($resp -is [string]) { $ips = $resp -split "[\n,]" } 
-                  elseif ($resp.data.CM) { $ips = $resp.data.CM.ip }
-                  elseif ($resp.data.CU) { $ips = $resp.data.CU.ip }
-                  elseif ($resp.data.CT) { $ips = $resp.data.CT.ip }
-                  elseif ($resp.data.AllAvg) { $ips = $resp.data.AllAvg.ip }
-                  elseif ($resp.info) { 
+                  elif ($resp.data.CM) { $ips = $resp.data.CM.ip }
+                  elif ($resp.data.CU) { $ips = $resp.data.CU.ip }
+                  elif ($resp.data.CT) { $ips = $resp.data.CT.ip }
+                  elif ($resp.data.AllAvg) { $ips = $resp.data.AllAvg.ip }
+                  elif ($resp.info) { 
                       $lineTag = $label.Split('-')[0]
                       $ips = $resp.info | Where-Object { $_.line -match $lineTag } | Select-Object -ExpandProperty ip
                   }
@@ -63,51 +101,53 @@ jobs:
                       $resList.Add("$clean#$($label)_$idx")
                       $idx++; if ($idx -gt 8) { break }
                   }
-              } catch { }
+              } catch { Write-Warning "Failed to fetch $label : $($_.Exception.Message)" }
               return $resList
           }
 
-          # 3. 执行任务
+          # 抓取逻辑（保持不变，底层已支持环境变量代理）
           $cm = Get-IPList "https://cf.090227.xyz/cmcc?ips=5" "CMCC-IPv4"
           $cm += Get-IPList "https://cf.090227.xyz/cmcc-ipv6" "CMCC-IPv6" $true
           $cm += Get-IPList "https://vps789.com/openApi/cfIpApi" "CMCC-VPS789"
           $cm += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CM-CFYes" $false @{key="iDetkOys"}
-          $cm += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CM-CFYesV6" $true @{key="iDetkOys";type="v6"}
-          $cm | Where-Object {$_} | Out-File "./bestcf/cmcc-ip.txt" -Encoding default -Force
+          $cm | Where-Object {$_} | Out-File "./bestcf/cmcc-ip.txt" -Encoding utf8 -Force
 
           $cu = Get-IPList "https://cf.090227.xyz/cu?ips=5" "CUCC-IPv4"
           $cu += Get-IPList "https://vps789.com/openApi/cfIpApi" "CUCC-VPS789"
           $cu += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CU-CFYes" $false @{key="iDetkOys"}
-          $cu | Where-Object {$_} | Out-File "./bestcf/cucc-ip.txt" -Encoding default -Force
+          $cu | Where-Object {$_} | Out-File "./bestcf/cucc-ip.txt" -Encoding utf8 -Force
 
           $ct = Get-IPList "https://cf.090227.xyz/ct?ips=5" "CTCC-IPv4"
           $ct += Get-IPList "https://vps789.com/openApi/cfIpApi" "CTCC-VPS789"
           $ct += Get-IPList "https://api.hostmonit.com/get_optimization_ip" "CT-CFYes" $false @{key="iDetkOys"}
-          $ct | Where-Object {$_} | Out-File "./bestcf/ctcc-ip.txt" -Encoding default -Force
+          $ct | Where-Object {$_} | Out-File "./bestcf/ctcc-ip.txt" -Encoding utf8 -Force
 
           $all = Get-IPList "https://ip.164746.xyz/ipTop10.html" "Global-SpeedTest"
           $all += Get-IPList "https://ipdb.api.030101.xyz/?type=bestcfv4" "Global-IPDB"
           $all += Get-IPList "https://ipdb.api.030101.xyz/?type=bestcfv6" "Global-IPDBV6" $true
-          $all | Where-Object {$_} | Out-File "./bestcf/bestcf-ip.txt" -Encoding default -Force
+          $all | Where-Object {$_} | Out-File "./bestcf/bestcf-ip.txt" -Encoding utf8 -Force
 
           $px = Get-IPList "https://ipdb.api.030101.xyz/?type=bestproxy" "Proxy-IPDB"
-          $px | Where-Object {$_} | Out-File "./bestcf/proxy-ip.txt" -Encoding default -Force
+          $px | Where-Object {$_} | Out-File "./bestcf/proxy-ip.txt" -Encoding utf8 -Force
 
       - name: Python Filter & Git Push
         shell: powershell
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HTTP_PROXY: ${{ env.GLOBAL_PROXY }}
+          HTTPS_PROXY: ${{ env.GLOBAL_PROXY }}
         run: |
           chcp 936
           if (Test-Path "filter.py") { & D:\Anaconda3\python.exe filter.py }
           
-          # 推送 bestcf 分支
           Set-Location ./bestcf
           git init
           git config --local user.name "github-actions[bot]"
           git config --local user.email "actions@github.com"
-          git config --local http.proxy "http://127.0.0.1:7897"
-          git config --local http.sslBackend schannel
+          if ($env:HTTP_PROXY) {
+              git config --local http.proxy "$env:HTTP_PROXY"
+              git config --local http.sslBackend schannel
+          }
           git checkout -b bestcf
           git add .
           git commit -m "优选更新于 $($env:update_version)"
@@ -128,7 +168,7 @@ jobs:
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "actions@github.com"
-          git config --local http.proxy "http://127.0.0.1:7897"
+          if ($env:GLOBAL_PROXY) { git config --local http.proxy "$env:GLOBAL_PROXY" }
           git pull origin main --rebase
           Get-Date | Out-File -FilePath "heartbeat.txt" -Encoding utf8
           git add heartbeat.txt
