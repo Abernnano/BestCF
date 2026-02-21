@@ -5,17 +5,13 @@ import sys
 import io
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# 1. 强制直连：屏蔽系统代理
-os.environ['no_proxy'] = '*'
-os.environ['HTTP_PROXY'] = ''
-os.environ['HTTPS_PROXY'] = ''
-
+# --- 1. 环境自适应配置 ---
+# 不再强制屏蔽代理，而是依赖 YAML 传入的环境变量
 if sys.platform.startswith('win'):
-    # 推荐改用这种方式，它能更好地处理现有的缓冲区
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stdin.reconfigure(encoding='utf-8')
 
-# --- 配置区 ---
+# --- 2. 配置区 ---
 CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]
 BASE_DIR = "./bestcf"
 SUMMARY_FILE = "all-countries-ip.txt"
@@ -27,8 +23,9 @@ COLO_MAP = {
     "CDG": "FR", "AMS": "NL", "IAD": "US", "ORD": "US", "DFW": "US", "EWR": "US"
 }
 
+# 开启 trust_env 以自动读取 HTTP_PROXY / HTTPS_PROXY
 session = requests.Session()
-session.trust_env = False 
+session.trust_env = True  
 headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
 
 def get_flag(country_code):
@@ -40,10 +37,11 @@ def get_ip_location(ip_line):
     clean_ip = raw_ip.replace('[', '').replace(']', '')
     is_ipv6 = ":" in clean_ip
     
-    # 优先：直连探测
+    # 优先：探测 Cloudflare 节点名 (如果是透明代理，此请求会由代理处理)
     trace_ip = f"[{clean_ip}]" if is_ipv6 else clean_ip
     try:
-        resp = session.get(f"http://{trace_ip}/cdn-cgi/trace", timeout=2, verify=False, headers=headers)
+        # 注意：这里 verify=False 是为了防止代理环境下的 SSL 证书校验失败
+        resp = session.get(f"http://{trace_ip}/cdn-cgi/trace", timeout=2, headers=headers)
         if resp.status_code == 200:
             colo = re.search(r'colo=([A-Z]{3})', resp.text)
             if colo:
@@ -51,7 +49,7 @@ def get_ip_location(ip_line):
     except:
         pass
 
-    # 保底：在线 API (处理本地无 v6 环境)
+    # 保底：在线 API (因为开启了 trust_env，这里会走路由器代理，解决 V6 连通性问题)
     try:
         resp = session.get(f"http://ip-api.com/json/{clean_ip}?fields=countryCode", timeout=3)
         if resp.status_code == 200:
