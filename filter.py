@@ -97,8 +97,9 @@ def test_ip_quality(ip_line):
     
     total_score = 0
     test_count = 3  # 测试次数
+    success_count = 0
     
-    for _ in range(test_count):
+    for i in range(test_count):
         try:
             start_time = time.time()
             resp = session.get(f"http://{trace_ip}/cdn-cgi/trace", timeout=2, verify=False, headers=headers)
@@ -107,11 +108,16 @@ def test_ip_quality(ip_line):
                 # 响应时间评分：越短越好，最高100分
                 time_score = max(0, 100 - (latency / 2))
                 total_score += time_score
-        except:
-            pass
+                success_count += 1
+                print(f"[DEBUG] Test {i+1} for {raw_ip}: success, latency = {latency:.2f}ms, score = {time_score:.2f}")
+            else:
+                print(f"[DEBUG] Test {i+1} for {raw_ip}: failed with status code {resp.status_code}")
+        except Exception as e:
+            print(f"[DEBUG] Test {i+1} for {raw_ip}: exception - {str(e)}")
     
     # 计算平均评分
     avg_score = total_score / test_count if test_count > 0 else 0
+    print(f"[DEBUG] {raw_ip}: {success_count}/{test_count} tests passed, average score = {avg_score:.2f}")
     return avg_score
 
 def secondary_filter():
@@ -127,8 +133,11 @@ def secondary_filter():
     with open(summary_path, 'r', encoding='utf-8') as f:
         lines = [l.strip() for l in f.readlines() if l.strip()]
     
+    print(f"[DEBUG] Read {len(lines)} lines from {SUMMARY_FILE}")
+    
     # 按国家码分组
     country_ips = {}
+    no_match_count = 0
     for line in lines:
         # 提取国家码
         match = re.search(r'#🌐?\s*([A-Z]{2,3})\s*\|', line)
@@ -137,20 +146,47 @@ def secondary_filter():
             if country_code not in country_ips:
                 country_ips[country_code] = []
             country_ips[country_code].append(line)
+        else:
+            no_match_count += 1
+            print(f"[DEBUG] No country code found in line: {line}")
+    
+    print(f"[DEBUG] Found {len(country_ips)} countries, {no_match_count} lines without country code")
     
     # 对每个国家的IP进行测试和排序
     filtered_ips = []
     for country_code, ips in country_ips.items():
+        print(f"[DEBUG] Testing {len(ips)} IPs for country {country_code}")
         # 测试每个IP的质量
         ip_scores = []
         for ip in ips:
             score = test_ip_quality(ip)
             ip_scores.append((ip, score))
+            print(f"[DEBUG] IP {ip.split('#')[0].strip()} scored {score:.2f}")
         
         # 按评分排序，取前5个
         ip_scores.sort(key=lambda x: x[1], reverse=True)
         top_ips = [ip for ip, score in ip_scores[:5]]
         filtered_ips.extend(top_ips)
+        print(f"[DEBUG] Selected {len(top_ips)} IPs for country {country_code}")
+    
+    # 容错机制：如果没有IP通过筛选，使用原始IP
+    if not filtered_ips and lines:
+        print("[WARNING] No IPs passed quality test, using original IPs")
+        # 按国家码分组，每个国家取前5个
+        temp_country_ips = {}
+        for line in lines:
+            match = re.search(r'#🌐?\s*([A-Z]{2,3})\s*\|', line)
+            if match:
+                country_code = match.group(1)
+                if country_code not in temp_country_ips:
+                    temp_country_ips[country_code] = []
+                if len(temp_country_ips[country_code]) < 5:
+                    temp_country_ips[country_code].append(line)
+        
+        # 收集所有IP
+        for country_code, ips in temp_country_ips.items():
+            filtered_ips.extend(ips)
+        print(f"[DEBUG] Fallback: Selected {len(filtered_ips)} IPs")
     
     # 生成新的TXT文件
     best_ip_file = os.path.join(BASE_DIR, "best-ip.txt")
