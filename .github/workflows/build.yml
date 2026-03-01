@@ -1,0 +1,183 @@
+name: Generate bestcf (Full Version)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */12 * * *"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**/README.md"
+      - "heartbeat.txt"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Generate bestcf Data
+        shell: pwsh
+        run: |
+          # 1. 环境初始化
+          if (!(Test-Path "./bestcf")) { New-Item -ItemType Directory -Path "./bestcf" -Force }
+          $ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+          $date = Get-Date -Format "yyyy-MM-dd"
+          echo "update_version=$date" >> $env:GITHUB_ENV
+
+          # 2. 定义核心抓取函数
+          function Get-IPList {
+              param($url, $label, $isV6 = $false, $postBody = $null)
+              $resList = New-Object System.Collections.Generic.List[string]
+              $retryCount = 3
+              for ($i = 1; $i -le $retryCount; $i++) {
+                  try {
+                      Write-Host "[INFO] Fetching $url (attempt $i/$retryCount)"
+                      if ($postBody) {
+                          $json = $postBody | ConvertTo-Json -Compress
+                          $resp = Invoke-RestMethod -Uri $url -Method Post -Body $json -ContentType "application/json" -UserAgent $ua -TimeoutSec 10
+                      } else {
+                          $resp = Invoke-RestMethod -Uri $url -UserAgent $ua -TimeoutSec 10
+                      }
+                      
+                      $ips = @()
+                      if ($resp -is [string]) { $ips = $resp -split "[\n,]" } 
+                      elseif ($resp.data.CM) { $ips = $resp.data.CM.ip }
+                      elseif ($resp.data.CU) { $ips = $resp.data.CU.ip }
+                      elseif ($resp.data.CT) { $ips = $resp.data.CT.ip }
+                      elseif ($resp.data.AllAvg) { $ips = $resp.data.AllAvg.ip }
+                      elseif ($resp.info) { 
+                          $lineTag = $label.Split('-')[0]
+                          $ips = $resp.info | Where-Object { $_.line -match $lineTag } | Select-Object -ExpandProperty ip
+                      }
+
+                      $idx = 1
+                      foreach ($ip in $ips) {
+                          $clean = $ip.Split('#')[0].Trim().Replace('[','').Replace(']','').Replace('"','')
+                          if (!$clean) { continue }
+                          if ($isV6) { $clean = '[' + $clean + ']' }
+                          $resList.Add($clean + '#' + $label + '_' + $idx)
+                          $idx++; if ($idx -gt 8) { break }
+                      }
+                      Write-Host ('[SUCCESS] Fetched ' + $resList.Count + ' IPs from ' + $url)
+                      break
+                  } catch {
+                      Write-Warning ('[WARNING] Failed to fetch ' + $url + ' (attempt ' + $i + '/' + $retryCount + '): ' + $_.Exception.Message)
+                      if ($i -eq $retryCount) {
+                          Write-Error ('[ERROR] Failed to fetch ' + $url + ' after ' + $retryCount + ' attempts')
+                      }
+                      Start-Sleep -Seconds 2
+                  }
+              }
+              return $resList
+          }
+
+          # 3. 执行任务
+          Write-Host '[INFO] Fetching CMCC IPs...'
+          $cm = Get-IPList 'https://cf.090227.xyz/cmcc?ips=5' 'CMCC-IPv4'
+          $cm += Get-IPList 'https://cf.090227.xyz/cmcc-ipv6' 'CMCC-IPv6' $true
+          $cm += Get-IPList 'https://vps789.com/openApi/cfIpApi' 'CMCC-VPS789'
+          $cm += Get-IPList 'https://api.hostmonit.com/get_optimization_ip' 'CM-CFYes' $false @{key='iDetkOys'}
+          $cm += Get-IPList 'https://api.hostmonit.com/get_optimization_ip' 'CM-CFYesV6' $true @{key='iDetkOys';type='v6'}
+          $cm | Where-Object {$_} | Out-File './bestcf/cmcc-ip.txt' -Encoding utf8 -Force
+          Write-Host ('[SUCCESS] Saved CMCC IPs: ' + $cm.Count)
+
+          Write-Host '[INFO] Fetching CUCC IPs...'
+          $cu = Get-IPList 'https://cf.090227.xyz/cu?ips=5' 'CUCC-IPv4'
+          $cu += Get-IPList 'https://vps789.com/openApi/cfIpApi' 'CUCC-VPS789'
+          $cu += Get-IPList 'https://api.hostmonit.com/get_optimization_ip' 'CU-CFYes' $false @{key='iDetkOys'}
+          $cu | Where-Object {$_} | Out-File './bestcf/cucc-ip.txt' -Encoding utf8 -Force
+          Write-Host ('[SUCCESS] Saved CUCC IPs: ' + $cu.Count)
+
+          Write-Host '[INFO] Fetching CTCC IPs...'
+          $ct = Get-IPList 'https://cf.090227.xyz/ct?ips=5' 'CTCC-IPv4'
+          $ct += Get-IPList 'https://vps789.com/openApi/cfIpApi' 'CTCC-VPS789'
+          $ct += Get-IPList 'https://api.hostmonit.com/get_optimization_ip' 'CT-CFYes' $false @{key='iDetkOys'}
+          $ct | Where-Object {$_} | Out-File './bestcf/ctcc-ip.txt' -Encoding utf8 -Force
+          Write-Host ('[SUCCESS] Saved CTCC IPs: ' + $ct.Count)
+
+          Write-Host '[INFO] Fetching Global IPs...'
+          $all = Get-IPList 'https://ip.164746.xyz/ipTop10.html' 'Global-SpeedTest'
+          $all += Get-IPList 'https://ipdb.api.030101.xyz/?type=bestcfv4' 'Global-IPDB'
+          $all += Get-IPList 'https://ipdb.api.030101.xyz/?type=bestcfv6' 'Global-IPDBV6' $true
+          $all | Where-Object {$_} | Out-File './bestcf/bestcf-ip.txt' -Encoding utf8 -Force
+          Write-Host ('[SUCCESS] Saved Global IPs: ' + $all.Count)
+
+          Write-Host '[INFO] Fetching Proxy IPs...'
+          $px = Get-IPList 'https://ipdb.api.030101.xyz/?type=bestproxy' 'Proxy-IPDB'
+          $px | Where-Object {$_} | Out-File './bestcf/proxy-ip.txt' -Encoding utf8 -Force
+          Write-Host ('[SUCCESS] Saved Proxy IPs: ' + $px.Count)
+
+      - name: Python Filter & Git Push
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "[INFO] Running filter.py..."
+          if [ -f "filter.py" ]; then
+              python filter.py
+          else
+              echo "[ERROR] filter.py not found"
+              exit 1
+          fi
+          
+          # 推送 bestcf 分支
+          cd ./bestcf
+          git init
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "actions@github.com"
+          git checkout -b bestcf || git checkout bestcf
+          git add .
+          git commit -m "优选更新于 $update_version" || echo "[INFO] No changes to commit"
+          git push -f "https://$GITHUB_ACTOR:$GITHUB_TOKEN@github.com/$GITHUB_REPOSITORY.git" bestcf
+          echo "[SUCCESS] Pushed to bestcf branch"
+
+      - name: Create & Update GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: update-${{ env.update_version }}
+          name: 优选更新 - ${{ env.update_version }}
+          files: ./bestcf/*.txt
+          body: "Cloudflare 优选数据自动更新。时间: ${{ env.update_version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Keepalive (Heartbeat)
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "actions@github.com"
+          git pull origin main --rebase
+          date > heartbeat.txt
+          git add heartbeat.txt
+          git commit -m "Chore: Keepalive heartbeat $(date)"
+          git push origin main
+          echo "[SUCCESS] Updated heartbeat"
+
+      - name: Cleanup Runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 1
+          keep_minimum_runs: 1
