@@ -140,15 +140,36 @@ def secondary_filter():
     no_match_count = 0
     for line in lines:
         # 提取国家码
-        match = re.search(r'#🌐?\s*([A-Z]{2,3})\s*\|', line)
-        if match:
-            country_code = match.group(1)
-            if country_code not in country_ips:
-                country_ips[country_code] = []
-            country_ips[country_code].append(line)
-        else:
+        try:
+            # 先按#分割
+            parts = line.split('#', 1)
+            if len(parts) < 2:
+                no_match_count += 1
+                print(f"[DEBUG] No # found in line: {line}")
+                continue
+            
+            # 提取#后面的部分
+            info_part = parts[1]
+            
+            # 提取国家码：寻找emoji后面的2-3个大写字母
+            # 匹配模式：emoji + 空格 + 2-3个大写字母 + 空格 + |
+            match = re.search(r'[\U0001F1E6-\U0001F1FF]\s*([A-Z]{2,3})\s*\|', info_part)
+            if not match:
+                # 尝试另一种模式：可能没有emoji
+                match = re.search(r'\s*([A-Z]{2,3})\s*\|', info_part)
+            
+            if match:
+                country_code = match.group(1)
+                if country_code not in country_ips:
+                    country_ips[country_code] = []
+                country_ips[country_code].append(line)
+                print(f"[DEBUG] Successfully extracted country code {country_code} from line: {line}")
+            else:
+                no_match_count += 1
+                print(f"[DEBUG] No country code found in line: {line}")
+        except Exception as e:
             no_match_count += 1
-            print(f"[DEBUG] No country code found in line: {line}")
+            print(f"[DEBUG] Error processing line {line}: {str(e)}")
     
     print(f"[DEBUG] Found {len(country_ips)} countries, {no_match_count} lines without country code")
     
@@ -174,19 +195,44 @@ def secondary_filter():
         print("[WARNING] No IPs passed quality test, using original IPs")
         # 按国家码分组，每个国家取前5个
         temp_country_ips = {}
+        fallback_no_match_count = 0
         for line in lines:
-            match = re.search(r'#🌐?\s*([A-Z]{2,3})\s*\|', line)
-            if match:
-                country_code = match.group(1)
-                if country_code not in temp_country_ips:
-                    temp_country_ips[country_code] = []
-                if len(temp_country_ips[country_code]) < 5:
-                    temp_country_ips[country_code].append(line)
+            try:
+                # 先按#分割
+                parts = line.split('#', 1)
+                if len(parts) < 2:
+                    fallback_no_match_count += 1
+                    print(f"[DEBUG] Fallback: No # found in line: {line}")
+                    continue
+                
+                # 提取#后面的部分
+                info_part = parts[1]
+                
+                # 提取国家码：寻找emoji后面的2-3个大写字母
+                # 匹配模式：emoji + 空格 + 2-3个大写字母 + 空格 + |
+                match = re.search(r'[\U0001F1E6-\U0001F1FF]\s*([A-Z]{2,3})\s*\|', info_part)
+                if not match:
+                    # 尝试另一种模式：可能没有emoji
+                    match = re.search(r'\s*([A-Z]{2,3})\s*\|', info_part)
+                
+                if match:
+                    country_code = match.group(1)
+                    if country_code not in temp_country_ips:
+                        temp_country_ips[country_code] = []
+                    if len(temp_country_ips[country_code]) < 5:
+                        temp_country_ips[country_code].append(line)
+                        print(f"[DEBUG] Fallback: Successfully extracted country code {country_code} from line: {line}")
+                else:
+                    fallback_no_match_count += 1
+                    print(f"[DEBUG] Fallback: No country code found in line: {line}")
+            except Exception as e:
+                fallback_no_match_count += 1
+                print(f"[DEBUG] Fallback: Error processing line {line}: {str(e)}")
         
         # 收集所有IP
         for country_code, ips in temp_country_ips.items():
             filtered_ips.extend(ips)
-        print(f"[DEBUG] Fallback: Selected {len(filtered_ips)} IPs")
+        print(f"[DEBUG] Fallback: Selected {len(filtered_ips)} IPs, {fallback_no_match_count} lines without country code")
     
     # 生成新的TXT文件
     best_ip_file = os.path.join(BASE_DIR, "best-ip.txt")
@@ -206,6 +252,12 @@ def main():
             f.write('\n'.join(sorted(list(summary))) + '\n')
         # 执行二次筛选
         secondary_filter()
+    elif os.path.exists(os.path.join(BASE_DIR, SUMMARY_FILE)):
+        # 如果已经存在SUMMARY_FILE，直接执行二次筛选
+        print("[INFO] Using existing summary file for secondary filter")
+        secondary_filter()
+    else:
+        print("[ERROR] No summary file found and no files to process")
     print("[SUCCESS] Classification done.")
 
 if __name__ == "__main__":
