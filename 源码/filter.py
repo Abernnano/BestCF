@@ -3,7 +3,6 @@ import re
 import os
 import sys
 import io
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 1. 强制直连：屏蔽系统代理
@@ -88,78 +87,6 @@ def process_file(filename, summary_set):
         with open(os.path.join(tag_dir, filename), 'w', encoding='utf-8') as f:
             f.write('\n'.join(items) + '\n')
 
-def test_ip_quality(ip_line):
-    """测试IP质量，返回综合评分"""
-    raw_ip = ip_line.split('#')[0].strip()
-    clean_ip = raw_ip.replace('[', '').replace(']', '')
-    is_ipv6 = ":" in clean_ip
-    trace_ip = f"[{clean_ip}]" if is_ipv6 else clean_ip
-    
-    total_score = 0
-    test_count = 3  # 测试次数
-    
-    for _ in range(test_count):
-        try:
-            start_time = time.time()
-            resp = session.get(f"http://{trace_ip}/cdn-cgi/trace", timeout=2, verify=False, headers=headers)
-            if resp.status_code == 200:
-                latency = (time.time() - start_time) * 1000  # 转换为毫秒
-                # 响应时间评分：越短越好，最高100分
-                time_score = max(0, 100 - (latency / 2))
-                total_score += time_score
-        except:
-            pass
-    
-    # 计算平均评分
-    avg_score = total_score / test_count if test_count > 0 else 0
-    return avg_score
-
-def secondary_filter():
-    """二次筛选功能，对all-countries-ip.txt中的IP进行筛选"""
-    summary_path = os.path.join(BASE_DIR, SUMMARY_FILE)
-    if not os.path.exists(summary_path):
-        print("[ERROR] Summary file not found.")
-        return
-    
-    print("[*] Starting secondary filter...")
-    
-    # 读取所有IP
-    with open(summary_path, 'r', encoding='utf-8') as f:
-        lines = [l.strip() for l in f.readlines() if l.strip()]
-    
-    # 按国家码分组
-    country_ips = {}
-    for line in lines:
-        # 提取国家码
-        match = re.search(r'#🌐?\s*([A-Z]{2,3})\s*\|', line)
-        if match:
-            country_code = match.group(1)
-            if country_code not in country_ips:
-                country_ips[country_code] = []
-            country_ips[country_code].append(line)
-    
-    # 对每个国家的IP进行测试和排序
-    filtered_ips = []
-    for country_code, ips in country_ips.items():
-        # 测试每个IP的质量
-        ip_scores = []
-        for ip in ips:
-            score = test_ip_quality(ip)
-            ip_scores.append((ip, score))
-        
-        # 按评分排序，取前5个
-        ip_scores.sort(key=lambda x: x[1], reverse=True)
-        top_ips = [ip for ip, score in ip_scores[:5]]
-        filtered_ips.extend(top_ips)
-    
-    # 写回文件
-    if filtered_ips:
-        with open(summary_path, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(sorted(filtered_ips)) + '\n')
-        print(f"[SUCCESS] Secondary filter completed. Kept {len(filtered_ips)} IPs.")
-    else:
-        print("[ERROR] No IPs passed the secondary filter.")
-
 def main():
     if not os.path.exists(BASE_DIR): os.makedirs(BASE_DIR)
     summary = set()
@@ -167,8 +94,6 @@ def main():
     if summary:
         with open(os.path.join(BASE_DIR, SUMMARY_FILE), 'w', encoding='utf-8') as f:
             f.write('\n'.join(sorted(list(summary))) + '\n')
-        # 执行二次筛选
-        secondary_filter()
     print("[SUCCESS] Classification done.")
 
 if __name__ == "__main__":
