@@ -152,11 +152,12 @@ def secondary_filter():
         top_ips = [ip for ip, score in ip_scores[:5]]
         filtered_ips.extend(top_ips)
     
-    # 写回文件
+    # 生成新的TXT文件
+    best_ip_file = os.path.join(BASE_DIR, "best-ip.txt")
     if filtered_ips:
-        with open(summary_path, 'w', encoding='utf-8') as f:
+        with open(best_ip_file, 'w', encoding='utf-8') as f:
             f.write('\n'.join(sorted(filtered_ips)) + '\n')
-        print(f"[SUCCESS] Secondary filter completed. Kept {len(filtered_ips)} IPs.")
+        print(f"[SUCCESS] Secondary filter completed. Kept {len(filtered_ips)} IPs in best-ip.txt.")
     else:
         print("[ERROR] No IPs passed the secondary filter.")
 
