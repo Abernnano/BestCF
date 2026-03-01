@@ -38,14 +38,33 @@ MAX_IPS_PER_COLO = 5
 MAX_RETRIES = 3  # 增加重试次数提高可靠性
 
 COLO_MAP = {
+    # 亚洲
     "HKG": "HK", "SIN": "SG", "NRT": "JP", "KIX": "JP", "ICN": "KR", "TPE": "TW",
-    "LAX": "US", "SJC": "US", "SEA": "US", "SFO": "US", "FRA": "DE", "LHR": "GB",
-    "CDG": "FR", "AMS": "NL", "IAD": "US", "ORD": "US", "DFW": "US", "EWR": "US"
+    "BOM": "IN", "DEL": "IN", "MAA": "IN", "KUL": "MY", "BKK": "TH", "MNL": "PH",
+    "SEO": "KR", "TYO": "JP", "SHA": "CN", "CAN": "CN", "SZX": "CN",
+    
+    # 北美洲
+    "LAX": "US", "SJC": "US", "SEA": "US", "SFO": "US", "IAD": "US", "ORD": "US", "DFW": "US", "EWR": "US",
+    "ATL": "US", "CHI": "US", "DEN": "US", "HOU": "US", "MIA": "US", "NYC": "US", "PHX": "US", "SEA": "US",
+    "YUL": "CA", "YVR": "CA", "YYZ": "CA",
+    
+    # 欧洲
+    "FRA": "DE", "LHR": "GB", "CDG": "FR", "AMS": "NL",
+    "MAD": "ES", "BCN": "ES", "MIL": "IT", "ROM": "IT", "VIE": "AT", "PRG": "CZ",
+    "STO": "SE", "CPH": "DK", "HEL": "FI", "BER": "DE", "BRU": "BE",
+    
+    # 大洋洲
+    "SYD": "AU", "MEL": "AU", "AKL": "NZ",
+    
+    # 南美洲
+    "SAO": "BR", "RIO": "BR", "SCL": "CL", "BUE": "AR"
 }
 
 # 为直连探测创建session（禁用代理）
 direct_session = requests.Session()
+# 完全禁用代理，确保直连探测不受代理影响
 direct_session.trust_env = False
+direct_session.proxies = {}
 # 进一步优化连接池配置
 adapter = requests.adapters.HTTPAdapter(
     max_retries=MAX_RETRIES,
@@ -58,7 +77,9 @@ direct_session.mount('https://', adapter)
 
 # 为API请求创建session（禁用代理）
 api_session = requests.Session()
-api_session.trust_env = False  # 禁用环境代理，避免Clash影响
+# 完全禁用代理，避免Clash影响
+api_session.trust_env = False
+api_session.proxies = {}
 api_adapter = requests.adapters.HTTPAdapter(
     max_retries=MAX_RETRIES,
     pool_connections=100,  # 增加API连接池大小
@@ -121,6 +142,10 @@ def get_ip_location(ip_line):
     # 直连探测（使用直连session，确保不经过代理）
     for retry in range(MAX_RETRIES):
         try:
+            # 确保代理被完全禁用
+            direct_session.trust_env = False
+            direct_session.proxies = {}
+            
             # 尝试使用HTTP和HTTPS
             protocols = ['http', 'https']
             for protocol in protocols:
@@ -128,18 +153,37 @@ def get_ip_location(ip_line):
                 url = f"{protocol}://{trace_ip}/cdn-cgi/trace"
                 logger.debug(f"探测IP: {raw_ip}, URL: {url}")
                 
-                resp = direct_session.get(url, timeout=2, verify=False, headers=headers)
-                if resp.status_code == 200:
-                    colo = re.search(r'colo=([A-Z]{3})', resp.text)
-                    if colo:
-                        colo_code = colo.group(1)
-                        country_code = COLO_MAP.get(colo_code, colo_code)
-                        logger.info(f"IP {raw_ip} 直连探测成功，colo: {colo_code}, 国家: {country_code}")
-                        return country_code
+                try:
+                    # 确保每次请求都使用新的连接，避免代理缓存影响
+                    resp = direct_session.get(url, timeout=2, verify=False, headers=headers, proxies={})
+                    if resp.status_code == 200:
+                        # 验证响应内容是否包含colo信息
+                        if 'colo=' in resp.text:
+                            colo = re.search(r'colo=([A-Z]{3})', resp.text)
+                            if colo:
+                                colo_code = colo.group(1)
+                                country_code = COLO_MAP.get(colo_code, colo_code)
+                                # 显示格式：国家代码-机场代码
+                                display_code = f"{country_code}-{colo_code}" if country_code != colo_code else colo_code
+                                logger.info(f"IP {raw_ip} 直连探测成功，colo: {colo_code}, 国家: {display_code}")
+                                return display_code
+                        else:
+                            logger.warning(f"IP {raw_ip} 响应中未包含colo信息")
+                except requests.exceptions.ConnectionError as ce:
+                    logger.warning(f"IP {raw_ip} {protocol}连接错误: {str(ce)}")
+                    # 如果是IPv6连接错误，尝试其他协议或方法
+                    if is_ipv6:
+                        logger.warning(f"IPv6连接失败，尝试其他方法...")
+                except requests.exceptions.ProxyError as pe:
+                    logger.warning(f"IP {raw_ip} {protocol}代理错误: {str(pe)}")
+                    # 再次确保代理被禁用
+                    direct_session.trust_env = False
+                    direct_session.proxies = {}
         except requests.exceptions.ProxyError as e:
             logger.warning(f"IP {raw_ip} 直连探测代理错误 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
             # 确保代理被禁用
             direct_session.trust_env = False
+            direct_session.proxies = {}
             time.sleep(0.5)
         except requests.exceptions.ConnectionError as e:
             logger.warning(f"IP {raw_ip} 直连探测连接错误 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
@@ -156,14 +200,19 @@ def get_ip_location(ip_line):
             url = f"https://{trace_ip}/cdn-cgi/trace"
             logger.debug(f"重新构造URL: {url}")
             try:
-                resp = direct_session.get(url, timeout=2, verify=False, headers=headers)
-                if resp.status_code == 200:
+                # 确保代理被禁用
+                direct_session.trust_env = False
+                direct_session.proxies = {}
+                resp = direct_session.get(url, timeout=2, verify=False, headers=headers, proxies={})
+                if resp.status_code == 200 and 'colo=' in resp.text:
                     colo = re.search(r'colo=([A-Z]{3})', resp.text)
                     if colo:
                         colo_code = colo.group(1)
                         country_code = COLO_MAP.get(colo_code, colo_code)
-                        logger.info(f"IP {raw_ip} 直连探测成功，colo: {colo_code}, 国家: {country_code}")
-                        return country_code
+                        # 显示格式：国家代码-机场代码
+                        display_code = f"{country_code}-{colo_code}" if country_code != colo_code else colo_code
+                        logger.info(f"IP {raw_ip} 直连探测成功，colo: {colo_code}, 国家: {display_code}")
+                        return display_code
             except Exception as e2:
                 logger.warning(f"IP {raw_ip} 重新构造URL后探测失败: {str(e2)}")
             time.sleep(0.5)

@@ -167,7 +167,27 @@ jobs:
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "actions@github.com"
+          
+          # 检查工作目录状态
+          echo "[INFO] Checking git status..."
+          git status
+          
+          # 处理未提交更改
+          if git status --porcelain | grep -q .; then
+            echo "[INFO] Found unstaged changes, stashing them..."
+            git stash push -m "Temporary stash for rebase"
+          fi
+          
+          # 执行rebase
+          echo "[INFO] Performing git pull --rebase..."
           git pull origin main --rebase
+          
+          # 恢复暂存的更改（如果有）
+          if git stash list | grep -q "Temporary stash for rebase"; then
+            echo "[INFO] Restoring stashed changes..."
+            git stash pop
+          fi
+          
           date > heartbeat.txt
           git add heartbeat.txt
           git commit -m "Chore: Keepalive heartbeat $(date)"
