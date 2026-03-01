@@ -33,7 +33,7 @@ CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]
 BASE_DIR = "./bestcf"
 SUMMARY_FILE = "all-countries-ip.txt"
 OPTIMIZED_FILE = "optimized-colo-ip.txt"
-MAX_WORKERS = 20  # 进一步减少并发数避免连接池溢出
+MAX_WORKERS = 20  # 合理的并发数
 MAX_IPS_PER_COLO = 5
 MAX_RETRIES = 3  # 增加重试次数提高可靠性
 
@@ -42,13 +42,6 @@ COLO_MAP = {
     "LAX": "US", "SJC": "US", "SEA": "US", "SFO": "US", "FRA": "DE", "LHR": "GB",
     "CDG": "FR", "AMS": "NL", "IAD": "US", "ORD": "US", "DFW": "US", "EWR": "US"
 }
-
-# 备选IP地理位置API
-IP_API_ENDPOINTS = [
-    "http://ip-api.com/json/{ip}?fields=countryCode",
-    "http://ipinfo.io/{ip}/country",
-    "http://api.ipstack.com/{ip}?access_key=YOUR_API_KEY&fields=country_code"  # 需要替换为实际API密钥
-]
 
 # 为直连探测创建session（禁用代理）
 direct_session = requests.Session()
@@ -84,33 +77,65 @@ def get_flag(country_code):
 def get_ip_location(ip_line):
     """
     获取IP的地理位置信息
-    优先使用直连探测获取colo信息，失败后使用在线API
+    仅使用直连探测获取colo信息，不使用在线API
     """
     raw_ip = ip_line.split('#')[0].strip()
-    # 移除端口号
-    if ':' in raw_ip and raw_ip.count(':') > 1:
-        # IPv6地址，可能包含端口号
-        if ']:' in raw_ip:
-            raw_ip = raw_ip.split(']:')[0] + ']'
-    elif ':' in raw_ip:
+    
+    # 处理IP地址格式，移除端口号
+    if ']:' in raw_ip:
+        # IPv6地址带端口号（已带方括号）
+        raw_ip = raw_ip.split(']:')[0] + ']'
+    elif ':' in raw_ip and raw_ip.count(':') == 1:
         # IPv4地址带端口号
         raw_ip = raw_ip.split(':')[0]
+    elif ':' in raw_ip and '[' not in raw_ip:
+        # IPv6地址不带方括号
+        # 检查是否带端口号
+        if raw_ip.count(':') > 1:
+            # 确定这是一个IPv6地址
+            if raw_ip.endswith(']'):
+                # 已经有结束方括号
+                pass
+            else:
+                # 检查最后一部分是否是端口号（数字）
+                parts = raw_ip.rsplit(':', 1)
+                if len(parts) == 2 and parts[1].isdigit():
+                    # 带端口号的IPv6地址
+                    raw_ip = f"[{parts[0]}]"
+                else:
+                    # 不带端口号的IPv6地址
+                    raw_ip = f"[{raw_ip}]"
     
+    # 清理IP地址格式
     clean_ip = raw_ip.replace('[', '').replace(']', '')
-    is_ipv6 = ":" in clean_ip
+    is_ipv6 = ':' in clean_ip
     
-    # 优先：直连探测（使用直连session，确保不经过代理）
-    trace_ip = f"[{clean_ip}]" if is_ipv6 else clean_ip
+    # 构造正确的URL格式
+    if is_ipv6:
+        # IPv6地址需要用方括号包围
+        trace_ip = f"[{clean_ip}]"
+    else:
+        # IPv4地址直接使用
+        trace_ip = clean_ip
+    
+    # 直连探测（使用直连session，确保不经过代理）
     for retry in range(MAX_RETRIES):
         try:
-            resp = direct_session.get(f"http://{trace_ip}/cdn-cgi/trace", timeout=2, verify=False, headers=headers)
-            if resp.status_code == 200:
-                colo = re.search(r'colo=([A-Z]{3})', resp.text)
-                if colo:
-                    colo_code = colo.group(1)
-                    country_code = COLO_MAP.get(colo_code, colo_code)
-                    logger.info(f"IP {raw_ip} 直连探测成功，colo: {colo_code}, 国家: {country_code}")
-                    return country_code
+            # 尝试使用HTTP和HTTPS
+            protocols = ['http', 'https']
+            for protocol in protocols:
+                # 构造完整的URL
+                url = f"{protocol}://{trace_ip}/cdn-cgi/trace"
+                logger.debug(f"探测IP: {raw_ip}, URL: {url}")
+                
+                resp = direct_session.get(url, timeout=2, verify=False, headers=headers)
+                if resp.status_code == 200:
+                    colo = re.search(r'colo=([A-Z]{3})', resp.text)
+                    if colo:
+                        colo_code = colo.group(1)
+                        country_code = COLO_MAP.get(colo_code, colo_code)
+                        logger.info(f"IP {raw_ip} 直连探测成功，colo: {colo_code}, 国家: {country_code}")
+                        return country_code
         except requests.exceptions.ProxyError as e:
             logger.warning(f"IP {raw_ip} 直连探测代理错误 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
             # 确保代理被禁用
@@ -119,44 +144,32 @@ def get_ip_location(ip_line):
         except requests.exceptions.ConnectionError as e:
             logger.warning(f"IP {raw_ip} 直连探测连接错误 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
             time.sleep(0.5)  # 重试间隔
+        except requests.exceptions.InvalidURL as e:
+            logger.warning(f"IP {raw_ip} URL格式错误 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
+            # 重新构造URL，确保IPv6地址格式正确
+            if is_ipv6:
+                # 确保IPv6地址被正确包裹在方括号中
+                trace_ip = f"[{clean_ip}]"
+            else:
+                trace_ip = clean_ip
+            # 尝试使用HTTPS协议
+            url = f"https://{trace_ip}/cdn-cgi/trace"
+            logger.debug(f"重新构造URL: {url}")
+            try:
+                resp = direct_session.get(url, timeout=2, verify=False, headers=headers)
+                if resp.status_code == 200:
+                    colo = re.search(r'colo=([A-Z]{3})', resp.text)
+                    if colo:
+                        colo_code = colo.group(1)
+                        country_code = COLO_MAP.get(colo_code, colo_code)
+                        logger.info(f"IP {raw_ip} 直连探测成功，colo: {colo_code}, 国家: {country_code}")
+                        return country_code
+            except Exception as e2:
+                logger.warning(f"IP {raw_ip} 重新构造URL后探测失败: {str(e2)}")
+            time.sleep(0.5)
         except Exception as e:
             logger.warning(f"IP {raw_ip} 直连探测失败 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
             time.sleep(0.5)  # 重试间隔
-
-    # 保底：在线 API (处理本地无 v6 环境)
-    for api_url in IP_API_ENDPOINTS:
-        for retry in range(MAX_RETRIES):
-            try:
-                # 替换API URL中的IP占位符
-                url = api_url.format(ip=clean_ip)
-                resp = api_session.get(url, timeout=3, headers=headers)
-                if resp.status_code == 200:
-                    # 根据不同API的响应格式解析国家码
-                    if "ip-api.com" in url:
-                        country_code = resp.json().get("countryCode")
-                    elif "ipinfo.io" in url:
-                        country_code = resp.text.strip()
-                    elif "api.ipstack.com" in url:
-                        country_code = resp.json().get("country_code")
-                    else:
-                        country_code = None
-                        
-                    if country_code:
-                        logger.info(f"IP {raw_ip} 在线API查询成功，国家: {country_code}")
-                        return country_code
-            except requests.exceptions.ProxyError as e:
-                logger.warning(f"IP {raw_ip} API查询代理错误 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
-                # 确保代理被禁用
-                api_session.trust_env = False
-                time.sleep(0.5)
-            except requests.exceptions.ConnectionError as e:
-                logger.warning(f"IP {raw_ip} API查询连接错误 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
-                time.sleep(0.5)  # 重试间隔
-            except Exception as e:
-                logger.warning(f"IP {raw_ip} API查询失败 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
-                time.sleep(0.5)  # 重试间隔
-        # 切换到下一个API前短暂延迟
-        time.sleep(0.3)
     
     logger.error(f"IP {raw_ip} 无法获取地理位置信息")
     return None

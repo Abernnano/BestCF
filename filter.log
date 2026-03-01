@@ -5,3 +5,148 @@
 2026-03-02 04:04:29,020 - WARNING - 文件 bestcf-ip.txt 不存在，跳过处理
 2026-03-02 04:04:29,020 - WARNING - 没有IP被处理
 2026-03-02 04:04:29,020 - INFO - IP筛选和优化完成，耗时: 0.00秒
+2026-03-02 04:10:57,822 - INFO - 开始执行IP筛选和优化
+2026-03-02 04:10:57,822 - INFO - 开始处理文件：test-ip.txt
+2026-03-02 04:10:57,823 - INFO - 文件 test-ip.txt 包含 4 个IP
+2026-03-02 04:10:57,827 - WARNING - IP 2606:4700:3036:0:a36a:4af2:65e7:a0d6:443 URL格式错误 (尝试 1/3): Failed to parse: http://[2606:4700:3036:0:a36a:4af2:65e7:a0d6:443]/cdn-cgi/trace
+2026-03-02 04:10:57,842 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000021E9D822D50>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:10:57,843 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000021E9D7A7100>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:10:57,858 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000021E9D7A7360>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:10:57,859 - WARNING - IP 2606:4700:3036:0:a36a:4af2:65e7:a0d6 直连探测连接错误 (尝试 1/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000021E9D811490>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:10:58,239 - INFO - IP 104.17.206.188 直连探测成功，colo: LAX, 国家: US
+2026-03-02 04:10:58,246 - INFO - IP 172.64.41.142 直连探测成功，colo: LAX, 国家: US
+2026-03-02 04:10:58,328 - WARNING - IP 2606:4700:3036:0:a36a:4af2:65e7:a0d6:443 URL格式错误 (尝试 2/3): Failed to parse: http://[2606:4700:3036:0:a36a:4af2:65e7:a0d6:443]/cdn-cgi/trace
+2026-03-02 04:10:58,373 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000021E9D79B130>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:10:58,374 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000021E9D79B460>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:10:58,387 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000021E9D848380>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:10:58,388 - WARNING - IP 2606:4700:3036:0:a36a:4af2:65e7:a0d6 直连探测连接错误 (尝试 2/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000021E9D8486B0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:10:58,829 - WARNING - IP 2606:4700:3036:0:a36a:4af2:65e7:a0d6:443 URL格式错误 (尝试 3/3): Failed to parse: http://[2606:4700:3036:0:a36a:4af2:65e7:a0d6:443]/cdn-cgi/trace
+2026-03-02 04:10:58,906 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000021E9D848E20>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:10:58,921 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000021E9D849150>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:10:58,921 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000021E9D849480>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:10:58,922 - WARNING - IP 2606:4700:3036:0:a36a:4af2:65e7:a0d6 直连探测连接错误 (尝试 3/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000021E9D8497B0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:10:59,330 - ERROR - IP 2606:4700:3036:0:a36a:4af2:65e7:a0d6:443 无法获取地理位置信息
+2026-03-02 04:10:59,422 - ERROR - IP 2606:4700:3036:0:a36a:4af2:65e7:a0d6 无法获取地理位置信息
+2026-03-02 04:10:59,425 - INFO - 已保存 US 分类结果到 ./US\test-ip.txt，共 2 个IP
+2026-03-02 04:10:59,425 - INFO - 文件 test-ip.txt 处理完成：成功 2 个，失败 2 个
+2026-03-02 04:10:59,425 - WARNING - 文件 cmcc-ip.txt 不存在，跳过处理
+2026-03-02 04:10:59,425 - WARNING - 文件 cucc-ip.txt 不存在，跳过处理
+2026-03-02 04:10:59,425 - WARNING - 文件 ctcc-ip.txt 不存在，跳过处理
+2026-03-02 04:10:59,425 - WARNING - 文件 bestcf-ip.txt 不存在，跳过处理
+2026-03-02 04:10:59,426 - INFO - 汇总文件保存成功，共 2 个IP
+2026-03-02 04:10:59,426 - INFO - 开始按colo优化IP...
+2026-03-02 04:10:59,433 - INFO - 读取到 2 个IP进行优化
+2026-03-02 04:10:59,434 - INFO - 按colo分组完成，共 0 个分组
+2026-03-02 04:10:59,434 - ERROR - 没有IP被优化
+2026-03-02 04:10:59,434 - INFO - IP筛选和优化完成，耗时: 1.61秒
+2026-03-02 04:11:23,518 - INFO - 开始执行IP筛选和优化
+2026-03-02 04:11:23,518 - INFO - 开始处理文件：test-ip.txt
+2026-03-02 04:11:23,519 - INFO - 文件 test-ip.txt 包含 4 个IP
+2026-03-02 04:11:23,523 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6:443] URL格式错误 (尝试 1/3): Failed to parse: http://[2606:4700:3036:0:a36a:4af2:65e7:a0d6:443]/cdn-cgi/trace
+2026-03-02 04:11:23,523 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002AC93E92D50>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:11:23,523 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002AC93E17100>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:11:23,539 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002AC93E17360>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:11:23,539 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 直连探测连接错误 (尝试 1/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002AC93E81490>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:11:23,921 - INFO - IP 172.64.41.142 直连探测成功，colo: LAX, 国家: US
+2026-03-02 04:11:23,938 - INFO - IP 104.17.206.188 直连探测成功，colo: LAX, 国家: US
+2026-03-02 04:11:24,024 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6:443] URL格式错误 (尝试 2/3): Failed to parse: http://[2606:4700:3036:0:a36a:4af2:65e7:a0d6:443]/cdn-cgi/trace
+2026-03-02 04:11:24,055 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002AC93E0B130>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:11:24,072 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002AC93E0B460>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:11:24,087 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002AC93EB8380>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:11:24,088 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 直连探测连接错误 (尝试 2/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002AC93EB86B0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:11:24,524 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6:443] URL格式错误 (尝试 3/3): Failed to parse: http://[2606:4700:3036:0:a36a:4af2:65e7:a0d6:443]/cdn-cgi/trace
+2026-03-02 04:11:24,589 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002AC93EB8E20>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:11:24,590 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002AC93EB9150>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:11:24,590 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002AC93EB9480>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:11:24,591 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 直连探测连接错误 (尝试 3/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000002AC93EB97B0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:11:25,025 - ERROR - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6:443] 无法获取地理位置信息
+2026-03-02 04:11:25,091 - ERROR - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 无法获取地理位置信息
+2026-03-02 04:11:25,092 - INFO - 已保存 US 分类结果到 ./US\test-ip.txt，共 2 个IP
+2026-03-02 04:11:25,092 - INFO - 文件 test-ip.txt 处理完成：成功 2 个，失败 2 个
+2026-03-02 04:11:25,093 - WARNING - 文件 cmcc-ip.txt 不存在，跳过处理
+2026-03-02 04:11:25,093 - WARNING - 文件 cucc-ip.txt 不存在，跳过处理
+2026-03-02 04:11:25,093 - WARNING - 文件 ctcc-ip.txt 不存在，跳过处理
+2026-03-02 04:11:25,093 - WARNING - 文件 bestcf-ip.txt 不存在，跳过处理
+2026-03-02 04:11:25,093 - INFO - 汇总文件保存成功，共 2 个IP
+2026-03-02 04:11:25,093 - INFO - 开始按colo优化IP...
+2026-03-02 04:11:25,095 - INFO - 读取到 2 个IP进行优化
+2026-03-02 04:11:25,095 - INFO - 按colo分组完成，共 0 个分组
+2026-03-02 04:11:25,095 - ERROR - 没有IP被优化
+2026-03-02 04:11:25,095 - INFO - IP筛选和优化完成，耗时: 1.58秒
+2026-03-02 04:12:13,728 - INFO - 开始执行IP筛选和优化
+2026-03-02 04:12:13,728 - INFO - 开始处理文件：test-ip.txt
+2026-03-02 04:12:13,728 - INFO - 文件 test-ip.txt 包含 4 个IP
+2026-03-02 04:12:13,732 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6:443] URL格式错误 (尝试 1/3): Failed to parse: http://[2606:4700:3036:0:a36a:4af2:65e7:a0d6:443]/cdn-cgi/trace
+2026-03-02 04:12:13,732 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000154D01CEE90>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:12:13,733 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000154D0157360>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:12:13,733 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000154D0157100>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:12:13,734 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 直连探测连接错误 (尝试 1/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000154D01C5370>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:12:14,155 - INFO - IP 172.64.41.142 直连探测成功，colo: LAX, 国家: US
+2026-03-02 04:12:14,156 - INFO - IP 104.17.206.188 直连探测成功，colo: LAX, 国家: US
+2026-03-02 04:12:14,233 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6:443] URL格式错误 (尝试 2/3): Failed to parse: http://[2606:4700:3036:0:a36a:4af2:65e7:a0d6:443]/cdn-cgi/trace
+2026-03-02 04:12:14,257 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000154D014F130>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:12:14,272 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000154D014F460>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:12:14,273 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000154D01FC380>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:12:14,289 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 直连探测连接错误 (尝试 2/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000154D01FC6B0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:12:14,734 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6:443] URL格式错误 (尝试 3/3): Failed to parse: http://[2606:4700:3036:0:a36a:4af2:65e7:a0d6:443]/cdn-cgi/trace
+2026-03-02 04:12:14,806 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000154D01FCE20>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:12:14,806 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000154D01FD150>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:12:14,807 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000154D01FD480>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:12:14,821 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 直连探测连接错误 (尝试 3/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x00000154D01FD7B0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:12:15,235 - ERROR - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6:443] 无法获取地理位置信息
+2026-03-02 04:12:15,321 - ERROR - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 无法获取地理位置信息
+2026-03-02 04:12:15,323 - INFO - 已保存 US 分类结果到 ./US\test-ip.txt，共 2 个IP
+2026-03-02 04:12:15,323 - INFO - 文件 test-ip.txt 处理完成：成功 2 个，失败 2 个
+2026-03-02 04:12:15,323 - WARNING - 文件 cmcc-ip.txt 不存在，跳过处理
+2026-03-02 04:12:15,323 - WARNING - 文件 cucc-ip.txt 不存在，跳过处理
+2026-03-02 04:12:15,323 - WARNING - 文件 ctcc-ip.txt 不存在，跳过处理
+2026-03-02 04:12:15,323 - WARNING - 文件 bestcf-ip.txt 不存在，跳过处理
+2026-03-02 04:12:15,324 - INFO - 汇总文件保存成功，共 2 个IP
+2026-03-02 04:12:15,324 - INFO - 开始按colo优化IP...
+2026-03-02 04:12:15,325 - INFO - 读取到 2 个IP进行优化
+2026-03-02 04:12:15,326 - INFO - 按colo分组完成，共 0 个分组
+2026-03-02 04:12:15,326 - ERROR - 没有IP被优化
+2026-03-02 04:12:15,326 - INFO - IP筛选和优化完成，耗时: 1.60秒
+2026-03-02 04:13:05,421 - INFO - 开始执行IP筛选和优化
+2026-03-02 04:13:05,422 - INFO - 开始处理文件：test-ip.txt
+2026-03-02 04:13:05,422 - INFO - 文件 test-ip.txt 包含 4 个IP
+2026-03-02 04:13:05,426 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FC9EFD0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:05,427 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FC2B100>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:05,427 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FC2B360>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:05,427 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FC95130>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:05,428 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCC270>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:05,428 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCC160>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:05,428 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 直连探测连接错误 (尝试 1/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCC6B0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:13:05,439 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 直连探测连接错误 (尝试 1/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCC8D0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:13:05,840 - INFO - IP 104.17.206.188 直连探测成功，colo: LAX, 国家: US
+2026-03-02 04:13:05,842 - INFO - IP 172.64.41.142 直连探测成功，colo: LAX, 国家: US
+2026-03-02 04:13:05,950 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FC23240>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:05,950 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FC23130>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:05,952 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCD150>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:05,952 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCCF30>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:05,952 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCD590>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:05,966 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCD7B0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:05,966 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 直连探测连接错误 (尝试 2/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCDBF0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:13:05,967 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 直连探测连接错误 (尝试 2/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCDF20>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:13:06,468 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCE580>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:06,468 - WARNING - Retrying (Retry(total=2, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCE9C0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:06,469 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCECF0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:06,469 - WARNING - Retrying (Retry(total=1, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCEF10>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:06,469 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCF350>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:06,470 - WARNING - Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCF680>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。')': /cdn-cgi/trace
+2026-03-02 04:13:06,470 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 直连探测连接错误 (尝试 3/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCFCE0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:13:06,488 - WARNING - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 直连探测连接错误 (尝试 3/3): HTTPConnectionPool(host='2606:4700:3036:0:a36a:4af2:65e7:a0d6', port=80): Max retries exceeded with url: /cdn-cgi/trace (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000028C1FCCF8A0>: Failed to establish a new connection: [WinError 10051] 向一个无法连接的网络尝试了一个套接字操作。'))
+2026-03-02 04:13:06,971 - ERROR - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 无法获取地理位置信息
+2026-03-02 04:13:06,989 - ERROR - IP [2606:4700:3036:0:a36a:4af2:65e7:a0d6] 无法获取地理位置信息
+2026-03-02 04:13:06,990 - INFO - 已保存 US 分类结果到 ./US\test-ip.txt，共 2 个IP
+2026-03-02 04:13:06,990 - INFO - 文件 test-ip.txt 处理完成：成功 2 个，失败 2 个
+2026-03-02 04:13:06,990 - WARNING - 文件 cmcc-ip.txt 不存在，跳过处理
+2026-03-02 04:13:06,990 - WARNING - 文件 cucc-ip.txt 不存在，跳过处理
+2026-03-02 04:13:06,991 - WARNING - 文件 ctcc-ip.txt 不存在，跳过处理
+2026-03-02 04:13:06,991 - WARNING - 文件 bestcf-ip.txt 不存在，跳过处理
+2026-03-02 04:13:06,991 - INFO - 汇总文件保存成功，共 2 个IP
+2026-03-02 04:13:06,991 - INFO - 开始按colo优化IP...
+2026-03-02 04:13:06,992 - INFO - 读取到 2 个IP进行优化
+2026-03-02 04:13:06,992 - INFO - 按colo分组完成，共 0 个分组
+2026-03-02 04:13:06,993 - ERROR - 没有IP被优化
+2026-03-02 04:13:06,993 - INFO - IP筛选和优化完成，耗时: 1.57秒
