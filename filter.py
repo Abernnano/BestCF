@@ -33,7 +33,7 @@ CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]
 BASE_DIR = "./bestcf"
 SUMMARY_FILE = "all-countries-ip.txt"
 OPTIMIZED_FILE = "optimized-colo-ip.txt"
-MAX_WORKERS = 50  # 减少并发数避免连接池溢出
+MAX_WORKERS = 20  # 进一步减少并发数避免连接池溢出
 MAX_IPS_PER_COLO = 5
 MAX_RETRIES = 3  # 增加重试次数提高可靠性
 
@@ -43,25 +43,34 @@ COLO_MAP = {
     "CDG": "FR", "AMS": "NL", "IAD": "US", "ORD": "US", "DFW": "US", "EWR": "US"
 }
 
+# 备选IP地理位置API
+IP_API_ENDPOINTS = [
+    "http://ip-api.com/json/{ip}?fields=countryCode",
+    "http://ipinfo.io/{ip}/country",
+    "http://api.ipstack.com/{ip}?access_key=YOUR_API_KEY&fields=country_code"  # 需要替换为实际API密钥
+]
+
 # 为直连探测创建session（禁用代理）
 direct_session = requests.Session()
 direct_session.trust_env = False
-# 增加连接池大小，避免连接池溢出
+# 进一步优化连接池配置
 adapter = requests.adapters.HTTPAdapter(
     max_retries=MAX_RETRIES,
-    pool_connections=100,  # 增加连接池大小
-    pool_maxsize=100       # 增加最大连接数
+    pool_connections=150,  # 进一步增加连接池大小
+    pool_maxsize=150,       # 进一步增加最大连接数
+    pool_block=True         # 当连接池满时阻塞而不是丢弃连接
 )
 direct_session.mount('http://', adapter)
 direct_session.mount('https://', adapter)
 
-# 为API请求创建session（可以使用代理）
+# 为API请求创建session（禁用代理）
 api_session = requests.Session()
 api_session.trust_env = False  # 禁用环境代理，避免Clash影响
 api_adapter = requests.adapters.HTTPAdapter(
     max_retries=MAX_RETRIES,
-    pool_connections=50,
-    pool_maxsize=50
+    pool_connections=100,  # 增加API连接池大小
+    pool_maxsize=100,       # 增加API最大连接数
+    pool_block=True         # 当连接池满时阻塞而不是丢弃连接
 )
 api_session.mount('http://', api_adapter)
 api_session.mount('https://', api_adapter)
@@ -102,22 +111,52 @@ def get_ip_location(ip_line):
                     country_code = COLO_MAP.get(colo_code, colo_code)
                     logger.info(f"IP {raw_ip} 直连探测成功，colo: {colo_code}, 国家: {country_code}")
                     return country_code
+        except requests.exceptions.ProxyError as e:
+            logger.warning(f"IP {raw_ip} 直连探测代理错误 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
+            # 确保代理被禁用
+            direct_session.trust_env = False
+            time.sleep(0.5)
+        except requests.exceptions.ConnectionError as e:
+            logger.warning(f"IP {raw_ip} 直连探测连接错误 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
+            time.sleep(0.5)  # 重试间隔
         except Exception as e:
             logger.warning(f"IP {raw_ip} 直连探测失败 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
             time.sleep(0.5)  # 重试间隔
 
     # 保底：在线 API (处理本地无 v6 环境)
-    for retry in range(MAX_RETRIES):
-        try:
-            resp = api_session.get(f"http://ip-api.com/json/{clean_ip}?fields=countryCode", timeout=3)
-            if resp.status_code == 200:
-                country_code = resp.json().get("countryCode")
-                if country_code:
-                    logger.info(f"IP {raw_ip} 在线API查询成功，国家: {country_code}")
-                    return country_code
-        except Exception as e:
-            logger.warning(f"IP {raw_ip} 在线API查询失败 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
-            time.sleep(0.5)  # 重试间隔
+    for api_url in IP_API_ENDPOINTS:
+        for retry in range(MAX_RETRIES):
+            try:
+                # 替换API URL中的IP占位符
+                url = api_url.format(ip=clean_ip)
+                resp = api_session.get(url, timeout=3, headers=headers)
+                if resp.status_code == 200:
+                    # 根据不同API的响应格式解析国家码
+                    if "ip-api.com" in url:
+                        country_code = resp.json().get("countryCode")
+                    elif "ipinfo.io" in url:
+                        country_code = resp.text.strip()
+                    elif "api.ipstack.com" in url:
+                        country_code = resp.json().get("country_code")
+                    else:
+                        country_code = None
+                        
+                    if country_code:
+                        logger.info(f"IP {raw_ip} 在线API查询成功，国家: {country_code}")
+                        return country_code
+            except requests.exceptions.ProxyError as e:
+                logger.warning(f"IP {raw_ip} API查询代理错误 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
+                # 确保代理被禁用
+                api_session.trust_env = False
+                time.sleep(0.5)
+            except requests.exceptions.ConnectionError as e:
+                logger.warning(f"IP {raw_ip} API查询连接错误 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
+                time.sleep(0.5)  # 重试间隔
+            except Exception as e:
+                logger.warning(f"IP {raw_ip} API查询失败 (尝试 {retry+1}/{MAX_RETRIES}): {str(e)}")
+                time.sleep(0.5)  # 重试间隔
+        # 切换到下一个API前短暂延迟
+        time.sleep(0.3)
     
     logger.error(f"IP {raw_ip} 无法获取地理位置信息")
     return None
