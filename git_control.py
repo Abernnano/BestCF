@@ -110,15 +110,30 @@ def main():
             code, current_branch, stderr = run_command("git rev-parse --abbrev-ref HEAD", cwd=repo_path)
             current_branch = current_branch.strip()
             
-            # 如果当前分支不是main，切换到main分支
+            # 确保切换到main分支
             if current_branch != "main":
                 print(f"当前分支是 {current_branch}，正在切换到 main 分支...")
-                code, stdout, stderr = run_command("git checkout main", cwd=repo_path)
-                if code != 0:
-                    print("切换分支失败:", stderr)
-                    input("\n按回车键继续...")
-                    continue
-                print("已切换到 main 分支")
+                # 检查main分支是否存在
+                code, stdout, stderr = run_command("git branch --list main", cwd=repo_path)
+                main_branch_exists = stdout.strip() != ""
+                
+                if main_branch_exists:
+                    # 切换到main分支
+                    code, stdout, stderr = run_command("git checkout main", cwd=repo_path)
+                    if code != 0:
+                        print("切换分支失败:", stderr)
+                        input("\n按回车键继续...")
+                        continue
+                    print("已切换到 main 分支")
+                else:
+                    # 如果main分支不存在，从当前分支创建main分支
+                    print("main分支不存在，从当前分支创建main分支...")
+                    code, stdout, stderr = run_command("git checkout -b main", cwd=repo_path)
+                    if code != 0:
+                        print("创建main分支失败:", stderr)
+                        input("\n按回车键继续...")
+                        continue
+                    print("已创建并切换到 main 分支")
             
             # 先从远程仓库拉取最新更改
             print("正在从远程仓库拉取最新更改...")
