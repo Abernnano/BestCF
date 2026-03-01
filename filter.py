@@ -98,6 +98,7 @@ def test_ip_quality(ip_line):
     total_score = 0
     test_count = 3  # 测试次数
     success_count = 0
+    ipv6_connection_error = False
     
     for i in range(test_count):
         try:
@@ -113,10 +114,21 @@ def test_ip_quality(ip_line):
             else:
                 print(f"[DEBUG] Test {i+1} for {raw_ip}: failed with status code {resp.status_code}")
         except Exception as e:
-            print(f"[DEBUG] Test {i+1} for {raw_ip}: exception - {str(e)}")
+            error_msg = str(e)
+            print(f"[DEBUG] Test {i+1} for {raw_ip}: exception - {error_msg}")
+            # 检测IPv6连接错误
+            if is_ipv6 and ("unreachable network" in error_msg or "10051" in error_msg):
+                ipv6_connection_error = True
+                print(f"[DEBUG] IPv6 connection error detected for {raw_ip}")
     
     # 计算平均评分
     avg_score = total_score / test_count if test_count > 0 else 0
+    
+    # 对于IPv6连接错误，给予最低评分，但不直接排除
+    if ipv6_connection_error and success_count == 0:
+        print(f"[DEBUG] {raw_ip}: IPv6 connection error, assigning minimum score")
+        avg_score = 0.1  # 给予最低但非零的评分
+    
     print(f"[DEBUG] {raw_ip}: {success_count}/{test_count} tests passed, average score = {avg_score:.2f}")
     return avg_score
 
