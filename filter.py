@@ -36,9 +36,9 @@ MAX_RETRIES = 1  # 最大重试次数
 RETRY_INTERVAL = 0.2  # 重试间隔（秒）
 
 # 筛选阈值配置
-MIN_THRESHOLD = 30  # 最低筛选阈值
-THRESHOLD_RATIO = 0.6  # 基于平均分数的阈值比例
-MIN_SUCCESS_RATE = 66.7  # 最低成功率要求（%）
+MIN_THRESHOLD = 25  # 最低筛选阈值（降低阈值以确保更多IP通过）
+THRESHOLD_RATIO = 0.5  # 基于平均分数的阈值比例（降低比例以确保更多IP通过）
+MIN_SUCCESS_RATE = 50  # 最低成功率要求（%）（降低要求以确保更多IP通过）
 MAX_LOAD_TIME = 3000  # 最大加载时间（毫秒）
 
 # IP数量配置
@@ -60,9 +60,18 @@ SCORE_WEIGHTS = {
     "stability": 0.15     # 稳定性评分权重
 }
 
+# 忽略SSL证书验证警告
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 session = requests.Session()
 session.trust_env = False 
-headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Connection': 'keep-alive'
+}
 
 def get_flag(country_code):
     if not country_code or len(country_code) != 2: return "🌐"
@@ -145,11 +154,11 @@ def test_ip_quality(ip_line, blacklist=None):
     success_count = 0
     ipv6_connection_error = False
     
-    # 延迟测试 - 使用Google 204测试
+    # 延迟测试 - 使用Google 204测试（使用443端口）
     try:
         test_start = time.time()
-        # 直接访问Google 204进行延迟测试
-        resp = session.get("https://www.google.com/generate_204", timeout=2, verify=False, headers=headers)
+        # 直接访问Google 204进行延迟测试，明确指定443端口
+        resp = session.get("https://www.google.com:443/generate_204", timeout=3, verify=False, headers=headers)
         if resp.status_code == 204:
             latency = (time.time() - test_start) * 1000  # 转换为毫秒
             latencies.append(latency)
@@ -165,11 +174,11 @@ def test_ip_quality(ip_line, blacklist=None):
             ipv6_connection_error = True
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: IPv6 connection error detected")
     
-    # 下载速度测试 - 使用Cloudflare测速链接，3秒超时
+    # 下载速度测试 - 使用Cloudflare测速链接，3秒超时（使用443端口）
     try:
         test_start = time.time()
-        # 直接访问Cloudflare测速链接进行3秒下载测试
-        resp = session.get("https://speed.cloudflare.com/__down?bytes=100000000", timeout=3, verify=False, headers=headers)
+        # 直接访问Cloudflare测速链接进行3秒下载测试，明确指定443端口
+        resp = session.get("https://speed.cloudflare.com:443/__down?bytes=100000000", timeout=3, verify=False, headers=headers)
         if resp.status_code == 200:
             data_size = len(resp.content)
             elapsed_time = time.time() - test_start
@@ -181,6 +190,39 @@ def test_ip_quality(ip_line, blacklist=None):
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: download speed test failed with status code {resp.status_code}")
     except Exception as e:
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: download speed test exception - {str(e)}")
+    
+    # 备用延迟测试 - 如果Google 204失败，使用Cloudflare的cdn-cgi/trace
+    if not latencies:
+        try:
+            test_start = time.time()
+            resp = session.get(f"http://{trace_ip}/cdn-cgi/trace", timeout=2, verify=False, headers=headers)
+            if resp.status_code == 200:
+                latency = (time.time() - test_start) * 1000  # 转换为毫秒
+                latencies.append(latency)
+                success_count = TEST_COUNT  # 一次成功视为所有测试通过
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: backup latency test success, latency = {latency:.2f}ms")
+            else:
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: backup latency test failed with status code {resp.status_code}")
+        except Exception as e:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: backup latency test exception - {str(e)}")
+    
+    # 备用下载测试 - 如果Cloudflare下载失败，使用较小的文件
+    if not download_speeds:
+        try:
+            test_start = time.time()
+            # 使用较小的文件进行测试，减少超时概率
+            resp = session.get("https://speed.cloudflare.com:443/__down?bytes=10000000", timeout=3, verify=False, headers=headers)
+            if resp.status_code == 200:
+                data_size = len(resp.content)
+                elapsed_time = time.time() - test_start
+                if elapsed_time > 0:
+                    download_speed = (data_size / 1024) / elapsed_time  # KB/s
+                    download_speeds.append(download_speed)
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: backup download speed test success, speed = {download_speed:.2f} KB/s")
+            else:
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: backup download speed test failed with status code {resp.status_code}")
+        except Exception as e:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: backup download speed test exception - {str(e)}")
     
     # 网页可访问性测试 - 简化为基础连接测试
     accessible_count = 0
@@ -435,10 +477,10 @@ def secondary_filter():
             total_load_time = 0
             test_count = 0
             
-            # 使用指定的测试项
+            # 使用指定的测试项（使用443端口）
             test_items = [
-                ("https://www.google.com/generate_204", "latency"),      # 延迟测试
-                ("https://speed.cloudflare.com/__down?bytes=100000000", "download")  # 下载速度测试
+                ("https://www.google.com:443/generate_204", "latency"),      # 延迟测试
+                ("https://speed.cloudflare.com:443/__down?bytes=100000000", "download")  # 下载速度测试
             ]
             
             for test_url, test_type in test_items:
@@ -446,7 +488,7 @@ def secondary_filter():
                 try:
                     start_time = time.time()
                     # 对于下载测试，设置3秒超时
-                    timeout = 3 if test_type == "download" else 2
+                    timeout = 3 if test_type == "download" else 3  # 增加延迟测试的超时时间
                     resp = session.get(test_url, timeout=timeout, verify=False, headers=headers)
                     load_time = (time.time() - start_time) * 1000
                     
@@ -459,6 +501,33 @@ def secondary_filter():
                     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: {test_type} test success, status code: {resp.status_code}, load time: {load_time:.2f}ms")
                 except Exception as e:
                     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: {test_type} test exception - {str(e)}")
+                    
+                    # 备用测试：如果主测试失败，使用备选方案
+                    if test_type == "latency":
+                        try:
+                            start_time = time.time()
+                            resp = session.get(f"http://{trace_ip}/cdn-cgi/trace", timeout=2, verify=False, headers=headers)
+                            if resp.status_code == 200:
+                                load_time = (time.time() - start_time) * 1000
+                                total_load_time += load_time
+                                if load_time < MAX_LOAD_TIME:
+                                    success_count += 1
+                                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: backup latency test success, load time: {load_time:.2f}ms")
+                        except Exception as e:
+                            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: backup latency test exception - {str(e)}")
+                    elif test_type == "download":
+                        try:
+                            start_time = time.time()
+                            # 使用较小的文件进行测试
+                            resp = session.get("https://speed.cloudflare.com:443/__down?bytes=10000000", timeout=3, verify=False, headers=headers)
+                            if resp.status_code == 200:
+                                load_time = (time.time() - start_time) * 1000
+                                total_load_time += load_time
+                                if load_time < MAX_LOAD_TIME:
+                                    success_count += 1
+                                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: backup download test success, load time: {load_time:.2f}ms")
+                        except Exception as e:
+                            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: backup download test exception - {str(e)}")
             
             # 计算平均加载时间和成功率
             avg_load_time = total_load_time / test_count if success_count > 0 else 9999
