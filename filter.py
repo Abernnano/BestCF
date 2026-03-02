@@ -61,7 +61,7 @@ def get_ip_location(ip_line):
         pass
     return None
 
-def process_file(filename, summary_set):
+def process_file(filename, summary_set, proxy_ips):
     path = os.path.join(BASE_DIR, filename)
     if not os.path.exists(path): return
     print(f"[*] Processing: {filename}")
@@ -77,6 +77,11 @@ def process_file(filename, summary_set):
             if tag:
                 ip = line.split('#')[0].strip()
                 note = line.split('#')[1].strip() if '#' in line else "Worker"
+                # 排除proxy-ip.txt中的IP和IPDB服务的IPv4地址
+                if ip in proxy_ips:
+                    continue
+                if note.startswith("Global-IPDB") and "V6" not in note:
+                    continue
                 final = f"{ip}#{get_flag(tag)} {tag} | {note}"
                 if tag not in categorized: categorized[tag] = []
                 categorized[tag].append(final)
@@ -257,8 +262,18 @@ def secondary_filter():
 
 def main():
     if not os.path.exists(BASE_DIR): os.makedirs(BASE_DIR)
+    # 读取proxy-ip.txt中的IP地址
+    proxy_ips = set()
+    proxy_path = os.path.join(BASE_DIR, "proxy-ip.txt")
+    if os.path.exists(proxy_path):
+        with open(proxy_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                ip = line.split('#')[0].strip()
+                if ip:
+                    proxy_ips.add(ip)
+        print(f"[INFO] Loaded {len(proxy_ips)} proxy IPs from proxy-ip.txt")
     summary = set()
-    for f in CLASSIFY_FILES: process_file(f, summary)
+    for f in CLASSIFY_FILES: process_file(f, summary, proxy_ips)
     if summary:
         with open(os.path.join(BASE_DIR, SUMMARY_FILE), 'w', encoding='utf-8') as f:
             f.write('\n'.join(sorted(list(summary))) + '\n')
