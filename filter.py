@@ -137,6 +137,9 @@ def process_file(filename, summary_set, proxy_ips):
                     continue
                 if note.startswith("Global-IPDB") and "V6" not in note:
                     continue
+                # 排除Proxy-IPDB开头的IP（反代IP）
+                if note.startswith("Proxy-IPDB"):
+                    continue
                 final = f"{ip}#{get_flag(tag)} {tag} | {note}"
                 if tag not in categorized: categorized[tag] = []
                 categorized[tag].append(final)
