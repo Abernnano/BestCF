@@ -279,19 +279,24 @@ def secondary_filter():
             # 提取#后面的部分
             info_part = parts[1]
             
-            # 提取国家码：寻找emoji后面的2-3个大写字母
+            # 提取国家码：优先寻找emoji后面的2-3个大写字母
             match = re.search(r'[\U0001F1E6-\U0001F1FF]\s*([A-Z]{2,3})\s*\|', info_part)
             if not match:
-                # 尝试另一种模式：可能没有emoji
+                # 尝试另一种模式：可能没有emoji，直接寻找2-3个大写字母
                 match = re.search(r'\s*([A-Z]{2,3})\s*\|', info_part)
+            if not match:
+                # 尝试第三种模式：可能格式不同，直接提取大写字母组合
+                match = re.search(r'([A-Z]{2,3})', info_part)
             
             if match:
                 country_code = match.group(1)
                 if country_code not in country_ips:
                     country_ips[country_code] = []
                 country_ips[country_code].append(line)
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Extracted country code {country_code} from line: {line}")
             else:
                 no_match_count += 1
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] No country code found in line: {line}")
         except Exception as e:
             no_match_count += 1
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Error processing line: {str(e)}")
