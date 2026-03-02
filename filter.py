@@ -16,16 +16,55 @@ if sys.platform.startswith('win'):
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stdin.reconfigure(encoding='utf-8')
 
-# --- 配置区 ---
-CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]
-BASE_DIR = "./bestcf"
-SUMMARY_FILE = "all-countries-ip.txt"
-MAX_WORKERS = 80 
+# --- 全局变量定义区 ---
 
+# 文件路径配置
+CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]  # 需要处理的IP文件列表
+BASE_DIR = "./bestcf"  # 基础目录
+SUMMARY_FILE = "all-countries-ip.txt"  # 汇总文件
+BEST_IP_FILE = "best-ip.txt"  # 最佳IP文件
+BLACKLIST_FILE = "ip-blacklist.txt"  # IP黑名单文件
+PROXY_IP_FILE = "proxy-ip.txt"  # 代理IP文件
+
+# 线程池配置
+MAX_WORKERS = 80  # 最大工作线程数
+MAX_COUNTRY_WORKERS = 10  # 处理国家IP的最大线程数
+
+# 测试配置
+TEST_COUNT = 2  # 基础连接测试次数
+MAX_RETRIES = 1  # 最大重试次数
+RETRY_INTERVAL = 0.2  # 重试间隔（秒）
+
+# 筛选阈值配置
+MIN_THRESHOLD = 30  # 最低筛选阈值
+THRESHOLD_RATIO = 0.6  # 基于平均分数的阈值比例
+MIN_SUCCESS_RATE = 66.7  # 最低成功率要求（%）
+MAX_LOAD_TIME = 3000  # 最大加载时间（毫秒）
+
+# IP数量配置
+MAX_IPS_PER_COUNTRY = 10  # 每个国家最多保留的IP数量
+MAX_IPS_PER_COUNTRY_FALLBACK = 5  # 容错机制下每个国家最多保留的IP数量
+
+# 国家代码映射
 COLO_MAP = {
     "HKG": "HK", "SIN": "SG", "NRT": "JP", "KIX": "JP", "ICN": "KR", "TPE": "TW",
     "LAX": "US", "SJC": "US", "SEA": "US", "SFO": "US", "FRA": "DE", "LHR": "GB",
     "CDG": "FR", "AMS": "NL", "IAD": "US", "ORD": "US", "DFW": "US", "EWR": "US"
+}
+
+# 测试网站列表
+TEST_WEBSITES = [
+    "http://example.com",
+    "http://google.com",
+    "http://baidu.com"
+]
+
+# 评分权重配置
+SCORE_WEIGHTS = {
+    "latency": 0.3,     # 延迟评分权重
+    "download": 0.25,    # 下载速度评分权重
+    "accessibility": 0.3, # 可访问性评分权重
+    "stability": 0.15     # 稳定性评分权重
 }
 
 session = requests.Session()
@@ -95,6 +134,7 @@ def process_file(filename, summary_set, proxy_ips):
 
 def test_ip_quality(ip_line, blacklist=None):
     """测试IP质量，返回综合评分"""
+    start_time = time.time()
     raw_ip = ip_line.split('#')[0].strip()
     clean_ip = raw_ip.replace('[', '').replace(']', '')
     is_ipv6 = ":" in clean_ip
@@ -102,123 +142,138 @@ def test_ip_quality(ip_line, blacklist=None):
     
     # 检查是否在黑名单中
     if blacklist and raw_ip in blacklist:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: in blacklist, assigning minimum score")
         return 0.1
-    
-    # 测试参数
-    test_count = 2  # 减少测试次数，提高效率
-    success_count = 0
-    ipv6_connection_error = False
     
     # 测试指标
     latencies = []
     download_speeds = []
     accessibility_scores = []
+    success_count = 0
+    ipv6_connection_error = False
     
     # 基础连接测试（合并为一次测试，减少网络请求）
     try:
-        start_time = time.time()
+        test_start = time.time()
         resp = session.get(f"http://{trace_ip}/cdn-cgi/trace", timeout=2, verify=False, headers=headers)
         if resp.status_code == 200:
-            latency = (time.time() - start_time) * 1000  # 转换为毫秒
+            latency = (time.time() - test_start) * 1000  # 转换为毫秒
             latencies.append(latency)
-            success_count = test_count  # 一次成功视为所有测试通过
+            success_count = TEST_COUNT  # 一次成功视为所有测试通过
             
             # 同时进行下载速度测试
             data_size = len(resp.content)
-            elapsed_time = time.time() - start_time
+            elapsed_time = time.time() - test_start
             if elapsed_time > 0:
                 download_speed = (data_size / 1024) / elapsed_time  # KB/s
                 download_speeds.append(download_speed)
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: connection test success, latency = {latency:.2f}ms, download speed = {download_speed:.2f} KB/s")
+        else:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: connection test failed with status code {resp.status_code}")
     except Exception as e:
         error_msg = str(e)
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: connection test exception - {error_msg}")
         # 检测IPv6连接错误
         if is_ipv6 and ("unreachable network" in error_msg or "10051" in error_msg):
             ipv6_connection_error = True
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: IPv6 connection error detected")
     
-    # 网页可访问性测试（只测试一个代表性网站）
+    # 网页可访问性测试
     accessible_count = 0
     try:
-        start_time = time.time()
+        test_start = time.time()
         resp = session.get(f"http://{trace_ip}", timeout=3, verify=False, headers=headers)
         if resp.status_code == 200:
-            load_time = (time.time() - start_time) * 1000
-            if load_time < 3000:  # 3秒内加载
+            load_time = (time.time() - test_start) * 1000
+            if load_time < MAX_LOAD_TIME:  # 3秒内加载
                 accessible_count = 1
                 accessibility_scores.append(100 - (load_time / 30))  # 最高100分
-    except:
-        pass
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: accessibility test success, load time = {load_time:.2f}ms")
+        else:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: accessibility test failed with status code {resp.status_code}")
+    except Exception as e:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: accessibility test exception - {str(e)}")
     
     # 计算综合评分
     score_components = {}
     
-    # 延迟评分（占30%）
+    # 延迟评分
     if latencies:
         avg_latency = sum(latencies) / len(latencies)
         latency_score = max(0, 100 - (avg_latency / 2))
-        score_components['latency'] = latency_score * 0.3
+        score_components['latency'] = latency_score * SCORE_WEIGHTS['latency']
     else:
         score_components['latency'] = 0
     
-    # 下载速度评分（占25%）
+    # 下载速度评分
     if download_speeds:
         avg_download = sum(download_speeds) / len(download_speeds)
         # 假设100KB/s为满分
         download_score = min(100, avg_download)
-        score_components['download'] = download_score * 0.25
+        score_components['download'] = download_score * SCORE_WEIGHTS['download']
     else:
         score_components['download'] = 0
     
-    # 可访问性评分（占30%）
+    # 可访问性评分
     if accessibility_scores:
         avg_accessibility = sum(accessibility_scores) / len(accessibility_scores)
-        score_components['accessibility'] = avg_accessibility * 0.3
+        score_components['accessibility'] = avg_accessibility * SCORE_WEIGHTS['accessibility']
     else:
         score_components['accessibility'] = 0
     
-    # 连接稳定性评分（占15%）
-    stability_score = (success_count / test_count) * 100
-    score_components['stability'] = stability_score * 0.15
+    # 连接稳定性评分
+    stability_score = (success_count / TEST_COUNT) * 100
+    score_components['stability'] = stability_score * SCORE_WEIGHTS['stability']
     
     # 计算总分
     total_score = sum(score_components.values())
     
     # 对于IPv6连接错误，给予最低评分，但不直接排除
     if ipv6_connection_error and success_count == 0:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: IPv6 connection error, assigning minimum score")
         total_score = 0.1  # 给予最低但非零的评分
     
+    elapsed_time = (time.time() - start_time) * 1000
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: test completed in {elapsed_time:.2f}ms, score = {total_score:.2f}")
     return total_score
 
 def secondary_filter():
     """二次筛选功能，对all-countries-ip.txt中的IP进行筛选"""
+    start_time = time.time()
     summary_path = os.path.join(BASE_DIR, SUMMARY_FILE)
     if not os.path.exists(summary_path):
-        print("[ERROR] Summary file not found.")
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] Summary file not found.")
         return
     
-    print("[*] Starting secondary filter...")
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [*] Starting secondary filter...")
     
     # 读取IP黑名单
     blacklist = set()
-    blacklist_path = os.path.join(BASE_DIR, "ip-blacklist.txt")
+    blacklist_path = os.path.join(BASE_DIR, BLACKLIST_FILE)
     if os.path.exists(blacklist_path):
         with open(blacklist_path, 'r', encoding='utf-8') as f:
             for line in f:
                 ip = line.strip()
                 if ip:
                     blacklist.add(ip)
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Loaded {len(blacklist)} IPs from blacklist")
     
     # 读取所有IP
     with open(summary_path, 'r', encoding='utf-8') as f:
         lines = [l.strip() for l in f.readlines() if l.strip()]
     
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Read {len(lines)} lines from {SUMMARY_FILE}")
+    
     # 按国家码分组
     country_ips = {}
+    no_match_count = 0
     for line in lines:
         # 提取国家码
         try:
             # 先按#分割
             parts = line.split('#', 1)
             if len(parts) < 2:
+                no_match_count += 1
                 continue
             
             # 提取#后面的部分
@@ -235,8 +290,13 @@ def secondary_filter():
                 if country_code not in country_ips:
                     country_ips[country_code] = []
                 country_ips[country_code].append(line)
-        except:
-            pass
+            else:
+                no_match_count += 1
+        except Exception as e:
+            no_match_count += 1
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Error processing line: {str(e)}")
+    
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Found {len(country_ips)} countries, {no_match_count} lines without country code")
     
     # 对每个国家的IP进行测试和排序
     filtered_ips = []
@@ -247,15 +307,14 @@ def secondary_filter():
         country_filtered = []
         country_blacklist = set()
         
-        # 测试每个IP的质量（减少重试次数）
+        # 测试每个IP的质量
         ip_scores = []
         for ip in ips:
-            # 最多重试1次，提高效率
-            max_retries = 1
+            # 最多重试MAX_RETRIES次
             retry_count = 0
             best_score = 0
             
-            while retry_count <= max_retries:
+            while retry_count <= MAX_RETRIES:
                 score = test_ip_quality(ip, blacklist)
                 if score > best_score:
                     best_score = score
@@ -263,8 +322,8 @@ def secondary_filter():
                 if best_score > 60:
                     break
                 retry_count += 1
-                if retry_count <= max_retries:
-                    time.sleep(0.2)  # 减少重试间隔
+                if retry_count <= MAX_RETRIES:
+                    time.sleep(RETRY_INTERVAL)  # 重试间隔
             
             ip_scores.append((ip, best_score))
             
@@ -281,18 +340,21 @@ def secondary_filter():
             # 计算平均分数，用于动态调整阈值
             avg_score = sum(score for _, score in ip_scores) / len(ip_scores)
             # 根据平均分数动态调整阈值
-            min_threshold = max(30, avg_score * 0.6)  # 最低阈值30，或平均分数的60%
+            min_threshold = max(MIN_THRESHOLD, avg_score * THRESHOLD_RATIO)  # 最低阈值30，或平均分数的60%
             
-            # 筛选出符合阈值的IP，最多取前10个
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Country {country_code}: avg score = {avg_score:.2f}, min threshold = {min_threshold:.2f}")
+            
+            # 筛选出符合阈值的IP，最多取前MAX_IPS_PER_COUNTRY个
             qualified_ips = [(ip, score) for ip, score in ip_scores if score >= min_threshold]
-            top_ips = [ip for ip, score in qualified_ips[:10]]
+            top_ips = [ip for ip, score in qualified_ips[:MAX_IPS_PER_COUNTRY]]
             country_filtered.extend(top_ips)
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Selected {len(top_ips)} IPs for country {country_code}")
         
         return country_filtered, country_blacklist
     
     # 使用线程池并行处理
     if country_ips:
-        with ThreadPoolExecutor(max_workers=min(10, len(country_ips))) as executor:
+        with ThreadPoolExecutor(max_workers=min(MAX_COUNTRY_WORKERS, len(country_ips))) as executor:
             futures = {executor.submit(process_country, country, ips): country for country, ips in country_ips.items()}
             for future in as_completed(futures):
                 country = futures[future]
@@ -301,7 +363,11 @@ def secondary_filter():
                     filtered_ips.extend(country_filtered)
                     new_blacklist.update(country_blacklist)
                 except Exception as e:
-                    print(f"[ERROR] Error processing country {country}: {str(e)}")
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] Error processing country {country}: {str(e)}")
+    
+    # 去重处理
+    filtered_ips = list(set(filtered_ips))
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] After deduplication: {len(filtered_ips)} IPs")
     
     # 更新黑名单
     if new_blacklist:
@@ -309,10 +375,12 @@ def secondary_filter():
             for ip in new_blacklist:
                 if ip not in blacklist:
                     f.write(ip + '\n')
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Updated blacklist with {len(new_blacklist)} new IPs")
     
     # 容错机制：如果没有IP通过筛选，使用原始IP
     if not filtered_ips and lines:
-        # 按国家码分组，每个国家取前5个
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [WARNING] No IPs passed quality test, using original IPs")
+        # 按国家码分组，每个国家取前MAX_IPS_PER_COUNTRY_FALLBACK个
         temp_country_ips = {}
         for line in lines:
             try:
@@ -333,7 +401,7 @@ def secondary_filter():
                     country_code = match.group(1)
                     if country_code not in temp_country_ips:
                         temp_country_ips[country_code] = []
-                    if len(temp_country_ips[country_code]) < 5:
+                    if len(temp_country_ips[country_code]) < MAX_IPS_PER_COUNTRY_FALLBACK:
                         temp_country_ips[country_code].append(line)
             except:
                 pass
@@ -341,18 +409,12 @@ def secondary_filter():
         # 收集所有IP
         for country_code, ips in temp_country_ips.items():
             filtered_ips.extend(ips)
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Fallback: Selected {len(filtered_ips)} IPs")
     
-    # 最终验证：测试筛选出的IP是否满足要求（简化验证）
+    # 最终验证：测试筛选出的IP是否满足要求
     if filtered_ips:
-        print("[*] Performing final verification on selected IPs...")
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [*] Performing final verification on selected IPs...")
         final_ips = []
-        
-        # 简化验证：只测试3个代表性网站
-        test_websites = [
-            "http://example.com",
-            "http://google.com",
-            "http://baidu.com"
-        ]
         
         for ip_line in filtered_ips:
             raw_ip = ip_line.split('#')[0].strip()
@@ -363,26 +425,30 @@ def secondary_filter():
             success_count = 0
             total_load_time = 0
             
-            for website in test_websites:
+            for website in TEST_WEBSITES:
                 try:
                     start_time = time.time()
                     resp = session.get(f"http://{trace_ip}", timeout=3, verify=False, headers=headers)
                     if resp.status_code == 200:
                         load_time = (time.time() - start_time) * 1000
                         total_load_time += load_time
-                        if load_time < 3000:  # 3秒内加载
+                        if load_time < MAX_LOAD_TIME:  # 3秒内加载
                             success_count += 1
-                except:
-                    pass
+                except Exception as e:
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: website {website} test exception - {str(e)}")
             
             # 计算平均加载时间和成功率
-            avg_load_time = total_load_time / len(test_websites) if success_count > 0 else 9999
-            success_rate = (success_count / len(test_websites)) * 100
+            avg_load_time = total_load_time / len(TEST_WEBSITES) if success_count > 0 else 9999
+            success_rate = (success_count / len(TEST_WEBSITES)) * 100
             
-            # 只有满足要求的IP才会被保留
-            if success_rate >= 66.7 and avg_load_time <= 3000:  # 2/3的成功率
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Final verification for {raw_ip}: {success_count}/{len(TEST_WEBSITES)} websites loaded, avg load time = {avg_load_time:.2f}ms, success rate = {success_rate:.1f}%")
+            
+            # 多条件组合筛选：AND逻辑
+            if success_rate >= MIN_SUCCESS_RATE and avg_load_time <= MAX_LOAD_TIME:
                 final_ips.append(ip_line)
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip} passed final verification")
             else:
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip} failed final verification: success rate {success_rate:.1f}%, avg load time {avg_load_time:.2f}ms")
                 # 添加到黑名单
                 new_blacklist.add(raw_ip)
         
@@ -392,46 +458,70 @@ def secondary_filter():
                 for ip in new_blacklist:
                     if ip not in blacklist:
                         f.write(ip + '\n')
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Updated blacklist with {len(new_blacklist)} new IPs")
         
         # 使用最终验证通过的IP
         if final_ips:
             filtered_ips = final_ips
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] {len(filtered_ips)} IPs passed final verification")
+        else:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [WARNING] No IPs passed final verification, using original filtered IPs")
     
     # 生成新的TXT文件
-    best_ip_file = os.path.join(BASE_DIR, "best-ip.txt")
+    best_ip_file = os.path.join(BASE_DIR, BEST_IP_FILE)
     if filtered_ips:
         with open(best_ip_file, 'w', encoding='utf-8') as f:
             f.write('\n'.join(sorted(filtered_ips)) + '\n')
-        print(f"[SUCCESS] Secondary filter completed. Kept {len(filtered_ips)} IPs in best-ip.txt.")
+        elapsed_time = time.time() - start_time
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [SUCCESS] Secondary filter completed in {elapsed_time:.2f}s. Kept {len(filtered_ips)} IPs in {BEST_IP_FILE}.")
     else:
-        print("[ERROR] No IPs passed the secondary filter.")
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] No IPs passed the secondary filter.")
 
 def main():
-    if not os.path.exists(BASE_DIR): os.makedirs(BASE_DIR)
+    """主函数"""
+    start_time = time.time()
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [*] Starting IP filtering process...")
+    
+    # 确保基础目录存在
+    if not os.path.exists(BASE_DIR):
+        os.makedirs(BASE_DIR)
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Created base directory: {BASE_DIR}")
+    
     # 读取proxy-ip.txt中的IP地址
     proxy_ips = set()
-    proxy_path = os.path.join(BASE_DIR, "proxy-ip.txt")
+    proxy_path = os.path.join(BASE_DIR, PROXY_IP_FILE)
     if os.path.exists(proxy_path):
         with open(proxy_path, 'r', encoding='utf-8') as f:
             for line in f:
                 ip = line.split('#')[0].strip()
                 if ip:
                     proxy_ips.add(ip)
-        print(f"[INFO] Loaded {len(proxy_ips)} proxy IPs from proxy-ip.txt")
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Loaded {len(proxy_ips)} proxy IPs from {PROXY_IP_FILE}")
+    
+    # 处理文件
     summary = set()
-    for f in CLASSIFY_FILES: process_file(f, summary, proxy_ips)
+    for filename in CLASSIFY_FILES:
+        process_file(filename, summary, proxy_ips)
+    
+    # 检查处理结果
     if summary:
-        with open(os.path.join(BASE_DIR, SUMMARY_FILE), 'w', encoding='utf-8') as f:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Processed {len(summary)} IPs")
+        # 写入汇总文件
+        summary_path = os.path.join(BASE_DIR, SUMMARY_FILE)
+        with open(summary_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(sorted(list(summary))) + '\n')
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Wrote summary to {SUMMARY_FILE}")
         # 执行二次筛选
         secondary_filter()
     elif os.path.exists(os.path.join(BASE_DIR, SUMMARY_FILE)):
         # 如果已经存在SUMMARY_FILE，直接执行二次筛选
-        print("[INFO] Using existing summary file for secondary filter")
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Using existing summary file for secondary filter")
         secondary_filter()
     else:
-        print("[ERROR] No summary file found and no files to process")
-    print("[SUCCESS] Classification done.")
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] No summary file found and no files to process")
+    
+    elapsed_time = time.time() - start_time
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [SUCCESS] Classification done in {elapsed_time:.2f}s.")
 
 if __name__ == "__main__":
     main()
