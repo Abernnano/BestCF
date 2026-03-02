@@ -196,9 +196,9 @@ def secondary_filter():
             ip_scores.append((ip, score))
             print(f"[DEBUG] IP {ip.split('#')[0].strip()} scored {score:.2f}")
         
-        # 按评分排序，取前5个
+        # 按评分排序，取前10个
         ip_scores.sort(key=lambda x: x[1], reverse=True)
-        top_ips = [ip for ip, score in ip_scores[:5]]
+        top_ips = [ip for ip, score in ip_scores[:10]]
         filtered_ips.extend(top_ips)
         print(f"[DEBUG] Selected {len(top_ips)} IPs for country {country_code}")
     
