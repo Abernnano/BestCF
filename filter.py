@@ -52,29 +52,6 @@ COLO_MAP = {
     "CDG": "FR", "AMS": "NL", "IAD": "US", "ORD": "US", "DFW": "US", "EWR": "US"
 }
 
-# 测试网站列表 - 覆盖不同地区的国外域名
-TEST_WEBSITES = [
-    "http://example.com",      # 全球通用
-    "http://google.com",       # 美国
-    "http://github.com",       # 美国
-    "http://facebook.com",     # 美国
-    "http://yahoo.com",        # 美国
-    "http://amazon.com",       # 美国
-    "http://twitter.com",      # 美国
-    "http://bing.com",         # 美国
-    "http://ebay.com",         # 美国
-    "http://linkedin.com",     # 美国
-    "http://instagram.com",    # 美国
-    "http://netflix.com",      # 美国
-    "http://spotify.com",      # 瑞典
-    "http://deutschebahn.com", # 德国
-    "http://bbc.co.uk",        # 英国
-    "http://canalplus.fr",     # 法国
-    "http://raiji.jp",         # 日本
-    "http://yandex.ru",        # 俄罗斯
-    "http://sina.com.cn"       # 中国（作为对比）
-]
-
 # 评分权重配置
 SCORE_WEIGHTS = {
     "latency": 0.3,     # 延迟评分权重
@@ -171,11 +148,8 @@ def test_ip_quality(ip_line, blacklist=None):
     # 延迟测试 - 使用Google 204测试
     try:
         test_start = time.time()
-        # 通过测试IP访问Google 204
-        # 设置Host头为www.google.com，模拟通过测试IP访问Google
-        headers_with_host = headers.copy()
-        headers_with_host['Host'] = 'www.google.com'
-        resp = session.get(f"http://{trace_ip}/generate_204", timeout=2, verify=False, headers=headers_with_host)
+        # 直接访问Google 204进行延迟测试
+        resp = session.get("https://www.google.com/generate_204", timeout=2, verify=False, headers=headers)
         if resp.status_code == 204:
             latency = (time.time() - test_start) * 1000  # 转换为毫秒
             latencies.append(latency)
@@ -191,14 +165,11 @@ def test_ip_quality(ip_line, blacklist=None):
             ipv6_connection_error = True
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: IPv6 connection error detected")
     
-    # 下载速度测试 - 使用Cloudflare测速链接
+    # 下载速度测试 - 使用Cloudflare测速链接，3秒超时
     try:
         test_start = time.time()
-        # 通过测试IP访问Cloudflare测速链接
-        # 设置Host头为speed.cloudflare.com，模拟通过测试IP访问Cloudflare测速服务
-        headers_with_host = headers.copy()
-        headers_with_host['Host'] = 'speed.cloudflare.com'
-        resp = session.get(f"http://{trace_ip}/__down?bytes=100000000", timeout=10, verify=False, headers=headers_with_host)
+        # 直接访问Cloudflare测速链接进行3秒下载测试
+        resp = session.get("https://speed.cloudflare.com/__down?bytes=100000000", timeout=3, verify=False, headers=headers)
         if resp.status_code == 200:
             data_size = len(resp.content)
             elapsed_time = time.time() - test_start
@@ -211,32 +182,11 @@ def test_ip_quality(ip_line, blacklist=None):
     except Exception as e:
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: download speed test exception - {str(e)}")
     
-    # 备用下载测试 - 使用Steam CDN链接
-    if not download_speeds:
-        try:
-            test_start = time.time()
-            # 通过测试IP访问Steam CDN链接
-            # 设置Host头为cdn.cloudflare.steamstatic.com，模拟通过测试IP访问Steam CDN
-            headers_with_host = headers.copy()
-            headers_with_host['Host'] = 'cdn.cloudflare.steamstatic.com'
-            resp = session.get(f"http://{trace_ip}/steam/apps/256843155/movie_max.mp4", timeout=10, verify=False, headers=headers_with_host)
-            if resp.status_code == 200:
-                data_size = len(resp.content)
-                elapsed_time = time.time() - test_start
-                if elapsed_time > 0:
-                    download_speed = (data_size / 1024) / elapsed_time  # KB/s
-                    download_speeds.append(download_speed)
-                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: backup download speed test success, speed = {download_speed:.2f} KB/s")
-            else:
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: backup download speed test failed with status code {resp.status_code}")
-        except Exception as e:
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: backup download speed test exception - {str(e)}")
-    
-    # 网页可访问性测试
+    # 网页可访问性测试 - 简化为基础连接测试
     accessible_count = 0
     try:
         test_start = time.time()
-        resp = session.get(f"http://{trace_ip}", timeout=3, verify=False, headers=headers)
+        resp = session.get(f"http://{trace_ip}/cdn-cgi/trace", timeout=2, verify=False, headers=headers)
         if resp.status_code == 200:
             load_time = (time.time() - test_start) * 1000
             if load_time < MAX_LOAD_TIME:  # 3秒内加载
@@ -485,33 +435,36 @@ def secondary_filter():
             total_load_time = 0
             test_count = 0
             
-            # 从不同地区选择4个代表性域名进行测试
-            selected_websites = [
-                "http://example.com",      # 全球通用
-                "http://google.com",       # 美国
-                "http://bbc.co.uk",        # 英国
-                "http://raiji.jp"          # 日本
+            # 使用指定的测试项
+            test_items = [
+                ("https://www.google.com/generate_204", "latency"),      # 延迟测试
+                ("https://speed.cloudflare.com/__down?bytes=100000000", "download")  # 下载速度测试
             ]
             
-            for website in selected_websites:
+            for test_url, test_type in test_items:
                 test_count += 1
                 try:
                     start_time = time.time()
-                    resp = session.get(f"http://{trace_ip}", timeout=3, verify=False, headers=headers)
+                    # 对于下载测试，设置3秒超时
+                    timeout = 3 if test_type == "download" else 2
+                    resp = session.get(test_url, timeout=timeout, verify=False, headers=headers)
                     load_time = (time.time() - start_time) * 1000
-                    if resp.status_code == 200:
+                    
+                    # 检查响应状态码
+                    if (test_type == "latency" and resp.status_code == 204) or (test_type == "download" and resp.status_code == 200):
                         total_load_time += load_time
                         if load_time < MAX_LOAD_TIME:  # 3秒内加载
                             success_count += 1
-                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: website {website} test success, status code: {resp.status_code}, load time: {load_time:.2f}ms")
+                    
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: {test_type} test success, status code: {resp.status_code}, load time: {load_time:.2f}ms")
                 except Exception as e:
-                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: website {website} test exception - {str(e)}")
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: {test_type} test exception - {str(e)}")
             
             # 计算平均加载时间和成功率
             avg_load_time = total_load_time / test_count if success_count > 0 else 9999
             success_rate = (success_count / test_count) * 100
             
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Final verification for {raw_ip}: {success_count}/{test_count} websites loaded, avg load time = {avg_load_time:.2f}ms, success rate = {success_rate:.1f}%")
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Final verification for {raw_ip}: {success_count}/{test_count} tests passed, avg load time = {avg_load_time:.2f}ms, success rate = {success_rate:.1f}%")
             
             # 多条件组合筛选：AND逻辑
             if success_rate >= MIN_SUCCESS_RATE and avg_load_time <= MAX_LOAD_TIME:
