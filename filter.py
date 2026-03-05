@@ -71,8 +71,17 @@ headers = {
 
 # CloudflareSpeedTest 相关配置
 CLOUDFLARE_SPEED_TEST_URL = "https://github.com/XIU2/CloudflareSpeedTest/releases/latest/download/"
+CLOUDFLARE_SPEED_TEST_MIRRORS = [
+    "https://ghfast.top/",
+    "https://ghproxy.it/",
+    "https://gh-proxy.org/",
+    "https://cdn.gh-proxy.org/",
+    "https://wget.la/"
+]
 CLOUDFLARE_SPEED_TEST_EXEC = "cfst.exe" if sys.platform.startswith('win') else "cfst"
 CLOUDFLARE_SPEED_TEST_RESULT = os.path.join(BASE_DIR, "cfst_result.txt")
+DOWNLOAD_TIMEOUT = 30
+DOWNLOAD_MAX_RETRIES = 3
 
 def get_flag(country_code):
     if not country_code or len(country_code) != 2: return "🌐"
@@ -82,6 +91,8 @@ def get_cloudflare_speedtest_nodes():
     """使用 CloudflareSpeedTest 获取最佳节点"""
     import subprocess
     import platform
+    import zipfile
+    import tarfile
     
     cfst_exec = os.path.join(BASE_DIR, CLOUDFLARE_SPEED_TEST_EXEC)
     
@@ -89,36 +100,67 @@ def get_cloudflare_speedtest_nodes():
     if not os.path.exists(cfst_exec):
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] CloudflareSpeedTest not found, downloading...")
         
-        # 确定下载 URL
+        # 确定文件名
         if platform.system() == "Windows":
-            download_url = CLOUDFLARE_SPEED_TEST_URL + "cfst_windows_amd64.zip"
+            filename = "cfst_windows_amd64.zip"
         elif platform.system() == "Linux":
-            download_url = CLOUDFLARE_SPEED_TEST_URL + "cfst_linux_amd64.tar.gz"
+            filename = "cfst_linux_amd64.tar.gz"
         elif platform.system() == "Darwin":
-            download_url = CLOUDFLARE_SPEED_TEST_URL + "cfst_darwin_amd64.tar.gz"
+            filename = "cfst_darwin_amd64.tar.gz"
         else:
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] Unsupported platform: {platform.system()}")
             return []
         
-        # 下载文件
+        # 构建所有可能的下载 URL（包括镜像源）
+        download_urls = [CLOUDFLARE_SPEED_TEST_URL + filename]
+        for mirror in CLOUDFLARE_SPEED_TEST_MIRRORS:
+            download_urls.append(mirror + CLOUDFLARE_SPEED_TEST_URL + filename)
+        
+        temp_file = os.path.join(BASE_DIR, "cfst_temp")
+        if platform.system() == "Windows":
+            temp_file += ".zip"
+        else:
+            temp_file += ".tar.gz"
+        
+        # 尝试下载文件（支持重试和镜像源）
+        download_success = False
+        for attempt in range(DOWNLOAD_MAX_RETRIES):
+            for url_idx, download_url in enumerate(download_urls):
+                try:
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Downloading CloudflareSpeedTest (attempt {attempt + 1}/{DOWNLOAD_MAX_RETRIES}, mirror {url_idx + 1}/{len(download_urls)}) from {download_url}")
+                    
+                    resp = session.get(download_url, stream=True, headers=headers, timeout=DOWNLOAD_TIMEOUT)
+                    resp.raise_for_status()
+                    
+                    with open(temp_file, 'wb') as f:
+                        for chunk in resp.iter_content(chunk_size=1024*1024):
+                            if chunk:
+                                f.write(chunk)
+                    
+                    # 验证文件大小
+                    if os.path.getsize(temp_file) > 0:
+                        download_success = True
+                        break
+                except requests.exceptions.Timeout:
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [WARNING] Download timeout from {download_url}")
+                except requests.exceptions.RequestException as e:
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [WARNING] Download failed from {download_url}: {str(e)}")
+            
+            if download_success:
+                break
+            
+            # 在重试之间等待
+            if attempt < DOWNLOAD_MAX_RETRIES - 1:
+                wait_time = (attempt + 1) * 2
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Waiting {wait_time} seconds before retry...")
+                time.sleep(wait_time)
+        
+        if not download_success:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] Failed to download CloudflareSpeedTest from all sources")
+            return []
+        
+        # 解压文件
         try:
-            import zipfile
-            import tarfile
-            
-            temp_file = os.path.join(BASE_DIR, "cfst_temp")
-            if platform.system() == "Windows":
-                temp_file += ".zip"
-            else:
-                temp_file += ".tar.gz"
-            
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Downloading CloudflareSpeedTest from {download_url}")
-            resp = session.get(download_url, stream=True, headers=headers)
-            with open(temp_file, 'wb') as f:
-                for chunk in resp.iter_content(chunk_size=1024*1024):
-                    if chunk:
-                        f.write(chunk)
-            
-            # 解压文件
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Extracting CloudflareSpeedTest")
             if platform.system() == "Windows":
                 with zipfile.ZipFile(temp_file, 'r') as zip_ref:
@@ -129,10 +171,14 @@ def get_cloudflare_speedtest_nodes():
             
             # 清理临时文件
             os.remove(temp_file)
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] CloudflareSpeedTest downloaded successfully")
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] CloudflareSpeedTest downloaded and extracted successfully")
         except Exception as e:
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] Failed to download CloudflareSpeedTest: {str(e)}")
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] Failed to extract CloudflareSpeedTest: {str(e)}")
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
             return []
+    else:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] CloudflareSpeedTest already exists at {cfst_exec}")
     
     # 运行 CloudflareSpeedTest
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Running CloudflareSpeedTest...")
@@ -142,7 +188,8 @@ def get_cloudflare_speedtest_nodes():
             [cfst_exec, "-tl", "200", "-dn", "20", "-o", CLOUDFLARE_SPEED_TEST_RESULT],
             capture_output=True,
             text=True,
-            cwd=BASE_DIR
+            cwd=BASE_DIR,
+            timeout=300
         )
         
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] CloudflareSpeedTest completed with return code: {result.returncode}")
@@ -162,24 +209,34 @@ def get_cloudflare_speedtest_nodes():
                 # 解析行数据
                 parts = line.split()
                 if len(parts) >= 6:
-                    ip = parts[0]
-                    latency = float(parts[4])
-                    speed = float(parts[5])
-                    country_code = parts[6]
-                    
-                    # 构建节点信息
-                    node_info = f"{ip}#{get_flag(country_code)} {country_code} | CloudflareSpeedTest"
-                    best_nodes.append((latency, speed, node_info))
+                    try:
+                        ip = parts[0]
+                        latency = float(parts[4])
+                        speed = float(parts[5])
+                        country_code = parts[6]
+                        
+                        # 构建节点信息，使用国家码_优选格式
+                        node_info = f"{ip}#{get_flag(country_code)} {country_code}_优选"
+                        best_nodes.append((latency, speed, node_info))
+                    except (ValueError, IndexError) as e:
+                        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [WARNING] Failed to parse line: {line}, error: {str(e)}")
+                        continue
             
             # 按延迟和速度排序，取前 5 个
-            best_nodes.sort(key=lambda x: (x[0], -x[1]))
-            best_nodes = [node[2] for node in best_nodes[:5]]
-            
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Found {len(best_nodes)} best nodes from CloudflareSpeedTest")
-            return best_nodes
+            if best_nodes:
+                best_nodes.sort(key=lambda x: (x[0], -x[1]))
+                best_nodes = [node[2] for node in best_nodes[:5]]
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Found {len(best_nodes)} best nodes from CloudflareSpeedTest")
+                return best_nodes
+            else:
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [WARNING] No valid nodes found in CloudflareSpeedTest result")
+                return []
         else:
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] CloudflareSpeedTest result file not found")
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] CloudflareSpeedTest result file not found at {CLOUDFLARE_SPEED_TEST_RESULT}")
             return []
+    except subprocess.TimeoutExpired:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] CloudflareSpeedTest execution timed out")
+        return []
     except Exception as e:
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] Failed to run CloudflareSpeedTest: {str(e)}")
         return []
@@ -579,15 +636,27 @@ def secondary_filter():
             top_ips = [ip for ip, score in qualified_ips[:MAX_IPS_PER_COUNTRY]]
             
             # 确保每个国家码只保留性能最优的5个节点
-            # 并按照"国家码_优选"的命名规范对节点进行命名
+            # 并按照"国家码_筛选来源"的命名规范对节点进行命名
             formatted_ips = []
             for i, ip in enumerate(top_ips):
                 parts = ip.split('#')
                 if len(parts) >= 2:
                     ip_addr = parts[0]
                     info = parts[1]
+                    # 提取筛选来源：从原始信息中获取
+                    # 原始信息格式："国旗 国家码 | 筛选来源_序号"
+                    source = "未知来源"
+                    # 尝试从原始信息中提取筛选来源
+                    if '|' in info:
+                        # 格式：国旗 国家码 | 筛选来源_序号
+                        source_part = info.split('|')[-1].strip()
+                        # 从来源部分提取，去掉序号部分
+                        if '_' in source_part:
+                            source = '_'.join(source_part.split('_')[:-1])
+                        else:
+                            source = source_part
                     # 重新格式化节点名称
-                    new_info = f"{get_flag(country_code)} {country_code}_优选 | {info.split('|')[-1].strip()}"
+                    new_info = f"{get_flag(country_code)} {country_code}_{source}"
                     formatted_ip = f"{ip_addr}#{new_info}"
                     formatted_ips.append(formatted_ip)
                 else:
