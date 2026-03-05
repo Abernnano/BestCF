@@ -31,6 +31,5 @@ wheels/
 *~
 
 # Project specific
-third_party/
 bestcf/
 heartbeat.txt
