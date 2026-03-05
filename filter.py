@@ -2,62 +2,44 @@ import requests
 import re
 import os
 import sys
-import io
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# 代码优化说明
-# 1. 下载测速功能优化：
-#    - 实现了严格的5秒时间控制
-#    - 使用stream=True方式下载，实时监控时间
-#    - 动态调整超时时间，确保总时间不超过5秒
-#    - 限制下载数据量，避免超时
-# 2. 冗余代码移除：
-#    - 移除了硬编码的重试次数和延迟，使用全局变量
-#    - 简化了测试链接列表，提高测试速度
-# 3. 性能优化：
-#    - 减少了延迟测试和下载测试的链接数量
-#    - 优化了最终验证测试的链接列表
-#    - 提高了代码的可维护性和可读性
-
-# 1. 强制直连：屏蔽系统代理
+# 强制直连：屏蔽系统代理
 os.environ['no_proxy'] = '*'
 os.environ['HTTP_PROXY'] = ''
 os.environ['HTTPS_PROXY'] = ''
 
 if sys.platform.startswith('win'):
-    # 推荐改用这种方式，它能更好地处理现有的缓冲区
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stdin.reconfigure(encoding='utf-8')
 
-# --- 全局变量定义区 ---
-
 # 文件路径配置
-CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]  # 需要处理的IP文件列表
-BASE_DIR = "./bestcf"  # 基础目录
-SUMMARY_FILE = "all-countries-ip.txt"  # 汇总文件
-BEST_IP_FILE = "best-ip.txt"  # 最佳IP文件
-BLACKLIST_FILE = "ip-blacklist.txt"  # IP黑名单文件
-PROXY_IP_FILE = "proxy-ip.txt"  # 代理IP文件
+CLASSIFY_FILES = ["cmcc-ip.txt", "cucc-ip.txt", "ctcc-ip.txt", "bestcf-ip.txt"]
+BASE_DIR = "./bestcf"
+SUMMARY_FILE = "all-countries-ip.txt"
+BEST_IP_FILE = "best-ip.txt"
+BLACKLIST_FILE = "ip-blacklist.txt"
+PROXY_IP_FILE = "proxy-ip.txt"
 
 # 线程池配置
-MAX_WORKERS = 80  # 最大工作线程数
-MAX_COUNTRY_WORKERS = 10  # 处理国家IP的最大线程数
+MAX_WORKERS = 80
+MAX_COUNTRY_WORKERS = 10
 
 # 测试配置
-TEST_COUNT = 2  # 基础连接测试次数
-MAX_RETRIES = 1  # 最大重试次数
-RETRY_INTERVAL = 0.2  # 重试间隔（秒）
+TEST_COUNT = 2
+MAX_RETRIES = 1
+RETRY_INTERVAL = 0.2
 
 # 筛选阈值配置
-MIN_THRESHOLD = 25  # 最低筛选阈值（降低阈值以确保更多IP通过）
-THRESHOLD_RATIO = 0.5  # 基于平均分数的阈值比例（降低比例以确保更多IP通过）
-MIN_SUCCESS_RATE = 50  # 最低成功率要求（%）（降低要求以确保更多IP通过）
-MAX_LOAD_TIME = 3000  # 最大加载时间（毫秒）
+MIN_THRESHOLD = 25
+THRESHOLD_RATIO = 0.5
+MIN_SUCCESS_RATE = 50
+MAX_LOAD_TIME = 3000
 
 # IP数量配置
-MAX_IPS_PER_COUNTRY = 10  # 每个国家最多保留的IP数量
-MAX_IPS_PER_COUNTRY_FALLBACK = 5  # 容错机制下每个国家最多保留的IP数量
+MAX_IPS_PER_COUNTRY = 5  # 每个国家最多保留的IP数量
+MAX_IPS_PER_COUNTRY_FALLBACK = 5
 
 # 国家代码映射
 COLO_MAP = {
@@ -87,9 +69,120 @@ headers = {
     'Connection': 'keep-alive'
 }
 
+# CloudflareSpeedTest 相关配置
+CLOUDFLARE_SPEED_TEST_URL = "https://github.com/XIU2/CloudflareSpeedTest/releases/latest/download/"
+CLOUDFLARE_SPEED_TEST_EXEC = "cfst.exe" if sys.platform.startswith('win') else "cfst"
+CLOUDFLARE_SPEED_TEST_RESULT = os.path.join(BASE_DIR, "cfst_result.txt")
+
 def get_flag(country_code):
     if not country_code or len(country_code) != 2: return "🌐"
     return "".join(chr(127397 + ord(c)) for c in country_code.upper())
+
+def get_cloudflare_speedtest_nodes():
+    """使用 CloudflareSpeedTest 获取最佳节点"""
+    import subprocess
+    import platform
+    
+    cfst_exec = os.path.join(BASE_DIR, CLOUDFLARE_SPEED_TEST_EXEC)
+    
+    # 检查是否存在 CloudflareSpeedTest 可执行文件
+    if not os.path.exists(cfst_exec):
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] CloudflareSpeedTest not found, downloading...")
+        
+        # 确定下载 URL
+        if platform.system() == "Windows":
+            download_url = CLOUDFLARE_SPEED_TEST_URL + "cfst_windows_amd64.zip"
+        elif platform.system() == "Linux":
+            download_url = CLOUDFLARE_SPEED_TEST_URL + "cfst_linux_amd64.tar.gz"
+        elif platform.system() == "Darwin":
+            download_url = CLOUDFLARE_SPEED_TEST_URL + "cfst_darwin_amd64.tar.gz"
+        else:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] Unsupported platform: {platform.system()}")
+            return []
+        
+        # 下载文件
+        try:
+            import zipfile
+            import tarfile
+            
+            temp_file = os.path.join(BASE_DIR, "cfst_temp")
+            if platform.system() == "Windows":
+                temp_file += ".zip"
+            else:
+                temp_file += ".tar.gz"
+            
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Downloading CloudflareSpeedTest from {download_url}")
+            resp = session.get(download_url, stream=True, headers=headers)
+            with open(temp_file, 'wb') as f:
+                for chunk in resp.iter_content(chunk_size=1024*1024):
+                    if chunk:
+                        f.write(chunk)
+            
+            # 解压文件
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Extracting CloudflareSpeedTest")
+            if platform.system() == "Windows":
+                with zipfile.ZipFile(temp_file, 'r') as zip_ref:
+                    zip_ref.extractall(BASE_DIR)
+            else:
+                with tarfile.open(temp_file, 'r:gz') as tar_ref:
+                    tar_ref.extractall(BASE_DIR)
+            
+            # 清理临时文件
+            os.remove(temp_file)
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] CloudflareSpeedTest downloaded successfully")
+        except Exception as e:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] Failed to download CloudflareSpeedTest: {str(e)}")
+            return []
+    
+    # 运行 CloudflareSpeedTest
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Running CloudflareSpeedTest...")
+    try:
+        # 运行 CloudflareSpeedTest 并获取结果
+        result = subprocess.run(
+            [cfst_exec, "-tl", "200", "-dn", "20", "-o", CLOUDFLARE_SPEED_TEST_RESULT],
+            capture_output=True,
+            text=True,
+            cwd=BASE_DIR
+        )
+        
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] CloudflareSpeedTest completed with return code: {result.returncode}")
+        
+        # 解析结果
+        if os.path.exists(CLOUDFLARE_SPEED_TEST_RESULT):
+            with open(CLOUDFLARE_SPEED_TEST_RESULT, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            
+            # 提取最佳的 5 个节点
+            best_nodes = []
+            for line in lines:
+                line = line.strip()
+                if not line or line.startswith("IP") or line.startswith("-"):
+                    continue
+                
+                # 解析行数据
+                parts = line.split()
+                if len(parts) >= 6:
+                    ip = parts[0]
+                    latency = float(parts[4])
+                    speed = float(parts[5])
+                    country_code = parts[6]
+                    
+                    # 构建节点信息
+                    node_info = f"{ip}#{get_flag(country_code)} {country_code} | CloudflareSpeedTest"
+                    best_nodes.append((latency, speed, node_info))
+            
+            # 按延迟和速度排序，取前 5 个
+            best_nodes.sort(key=lambda x: (x[0], -x[1]))
+            best_nodes = [node[2] for node in best_nodes[:5]]
+            
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Found {len(best_nodes)} best nodes from CloudflareSpeedTest")
+            return best_nodes
+        else:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] CloudflareSpeedTest result file not found")
+            return []
+    except Exception as e:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] Failed to run CloudflareSpeedTest: {str(e)}")
+        return []
 
 def get_ip_location(ip_line):
     raw_ip = ip_line.split('#')[0].strip()
@@ -104,7 +197,7 @@ def get_ip_location(ip_line):
             colo = re.search(r'colo=([A-Z]{3})', resp.text)
             if colo:
                 return COLO_MAP.get(colo.group(1), colo.group(1))
-    except:
+    except Exception:
         pass
 
     # 保底：在线 API (处理本地无 v6 环境)
@@ -112,13 +205,14 @@ def get_ip_location(ip_line):
         resp = session.get(f"http://ip-api.com/json/{clean_ip}?fields=countryCode", timeout=3)
         if resp.status_code == 200:
             return resp.json().get("countryCode")
-    except:
+    except Exception:
         pass
     return None
 
 def process_file(filename, summary_set, proxy_ips):
     path = os.path.join(BASE_DIR, filename)
-    if not os.path.exists(path): return
+    if not os.path.exists(path):
+        return
     print(f"[*] Processing: {filename}")
     with open(path, 'r', encoding='utf-8') as f:
         lines = [l.strip() for l in f.readlines() if l.strip()]
@@ -126,9 +220,9 @@ def process_file(filename, summary_set, proxy_ips):
     categorized = {}
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {executor.submit(get_ip_location, l): l for l in lines}
-        for f in as_completed(futures):
-            line = futures[f]
-            tag = f.result()
+        for future in as_completed(futures):
+            line = futures[future]
+            tag = future.result()
             if tag:
                 ip = line.split('#')[0].strip()
                 note = line.split('#')[1].strip() if '#' in line else "Worker"
@@ -141,7 +235,8 @@ def process_file(filename, summary_set, proxy_ips):
                 if note.startswith("Proxy-IPDB"):
                     continue
                 final = f"{ip}#{get_flag(tag)} {tag} | {note}"
-                if tag not in categorized: categorized[tag] = []
+                if tag not in categorized:
+                    categorized[tag] = []
                 categorized[tag].append(final)
                 summary_set.add(final)
 
@@ -171,17 +266,17 @@ def test_ip_quality(ip_line, blacklist=None):
     success_count = 0
     ipv6_connection_error = False
     
-    # 延迟测试链接列表（优化：减少链接数量，提高测试速度）
+    # 延迟测试链接列表
     latency_links = [
-        ("https://www.google.com:443/generate_204", "Google"),
         ("https://www.cloudflare.com:443/generate_204", "Cloudflare"),
+        ("https://www.google.com:443/generate_204", "Google"),
         ("http://www.msftconnecttest.com:80/connecttest.txt", "Microsoft")
     ]
     
-    # 下载速度测试链接列表（优化：选择更快的链接，控制在5秒以内）
+    # 下载速度测试链接列表
     download_links = [
-        ("https://cdn.cloudflare.steamstatic.com:443/steam/apps/256843155/movie_max.mp4", "Steam CDN"),
-        ("https://speed.cloudflare.com:443/__down?bytes=50000000", "Cloudflare 50MB")
+        ("https://speed.cloudflare.com:443/__down?bytes=50000000", "Cloudflare 50MB"),
+        ("https://cdn.cloudflare.steamstatic.com:443/steam/apps/256843155/movie_max.mp4", "Steam CDN")
     ]
     
     # 延迟测试 - 实施链接fallback机制
@@ -196,20 +291,13 @@ def test_ip_quality(ip_line, blacklist=None):
                     resp = session.get(link, timeout=timeout, verify=False, headers=headers)
                     
                     # 检查响应状态码
-                    if link.endswith('generate_204'):
-                        if resp.status_code == 204:
-                            latency = (time.time() - test_start) * 1000  # 转换为毫秒
-                            latencies.append(latency)
-                            success_count = TEST_COUNT  # 一次成功视为所有测试通过
-                            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: latency test with {name} success, latency = {latency:.2f}ms")
-                            break
-                    else:
-                        if resp.status_code == 200:
-                            latency = (time.time() - test_start) * 1000  # 转换为毫秒
-                            latencies.append(latency)
-                            success_count = TEST_COUNT  # 一次成功视为所有测试通过
-                            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: latency test with {name} success, latency = {latency:.2f}ms")
-                            break
+                    expected_status = 204 if link.endswith('generate_204') else 200
+                    if resp.status_code == expected_status:
+                        latency = (time.time() - test_start) * 1000  # 转换为毫秒
+                        latencies.append(latency)
+                        success_count = TEST_COUNT  # 一次成功视为所有测试通过
+                        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: latency test with {name} success, latency = {latency:.2f}ms")
+                        break
                     
                     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: latency test with {name} failed with status code {resp.status_code}")
                 except Exception as e:
@@ -228,7 +316,7 @@ def test_ip_quality(ip_line, blacklist=None):
             error_msg = str(e)
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: latency test loop exception - {error_msg}")
     
-    # 下载速度测试 - 实施链接fallback机制（优化：严格控制在5秒以内）
+    # 下载速度测试 - 实施链接fallback机制
     download_test_start = time.time()
     for link, name in download_links:
         try:
@@ -432,10 +520,8 @@ def secondary_filter():
                 if country_code not in country_ips:
                     country_ips[country_code] = []
                 country_ips[country_code].append(line)
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Extracted country code {country_code} from line: {line}")
             else:
                 no_match_count += 1
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] No country code found in line: {line}")
         except Exception as e:
             no_match_count += 1
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Error processing line: {str(e)}")
@@ -484,15 +570,31 @@ def secondary_filter():
             # 计算平均分数，用于动态调整阈值
             avg_score = sum(score for _, score in ip_scores) / len(ip_scores)
             # 根据平均分数动态调整阈值
-            min_threshold = max(MIN_THRESHOLD, avg_score * THRESHOLD_RATIO)  # 最低阈值30，或平均分数的60%
+            min_threshold = max(MIN_THRESHOLD, avg_score * THRESHOLD_RATIO)
             
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Country {country_code}: avg score = {avg_score:.2f}, min threshold = {min_threshold:.2f}")
             
             # 筛选出符合阈值的IP，最多取前MAX_IPS_PER_COUNTRY个
             qualified_ips = [(ip, score) for ip, score in ip_scores if score >= min_threshold]
             top_ips = [ip for ip, score in qualified_ips[:MAX_IPS_PER_COUNTRY]]
-            country_filtered.extend(top_ips)
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Selected {len(top_ips)} IPs for country {country_code}")
+            
+            # 确保每个国家码只保留性能最优的5个节点
+            # 并按照"国家码_优选"的命名规范对节点进行命名
+            formatted_ips = []
+            for i, ip in enumerate(top_ips):
+                parts = ip.split('#')
+                if len(parts) >= 2:
+                    ip_addr = parts[0]
+                    info = parts[1]
+                    # 重新格式化节点名称
+                    new_info = f"{get_flag(country_code)} {country_code}_优选 | {info.split('|')[-1].strip()}"
+                    formatted_ip = f"{ip_addr}#{new_info}"
+                    formatted_ips.append(formatted_ip)
+                else:
+                    formatted_ips.append(ip)
+            
+            country_filtered.extend(formatted_ips)
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] Selected {len(formatted_ips)} IPs for country {country_code}")
         
         return country_filtered, country_blacklist
     
@@ -570,16 +672,16 @@ def secondary_filter():
             total_load_time = 0
             test_count = 0
             
-            # 最终验证测试链接列表（优化：减少链接数量，提高验证速度）
+            # 最终验证测试链接列表
             final_latency_links = [
-                ("https://www.google.com:443/generate_204", "Google"),
                 ("https://www.cloudflare.com:443/generate_204", "Cloudflare"),
+                ("https://www.google.com:443/generate_204", "Google"),
                 ("http://www.msftconnecttest.com:80/connecttest.txt", "Microsoft")
             ]
             
             final_download_links = [
-                ("https://cdn.cloudflare.steamstatic.com:443/steam/apps/256843155/movie_max.mp4", "Steam CDN"),
-                ("https://speed.cloudflare.com:443/__down?bytes=50000000", "Cloudflare 50MB")
+                ("https://speed.cloudflare.com:443/__down?bytes=50000000", "Cloudflare 50MB"),
+                ("https://cdn.cloudflare.steamstatic.com:443/steam/apps/256843155/movie_max.mp4", "Steam CDN")
             ]
             
             # 延迟测试
@@ -594,24 +696,15 @@ def secondary_filter():
                             timeout = 3 + (retry * 0.5)
                             resp = session.get(link, timeout=timeout, verify=False, headers=headers)
                             
-                            if link.endswith('generate_204'):
-                                if resp.status_code == 204:
-                                    load_time = (time.time() - start_time) * 1000
-                                    total_load_time += load_time
-                                    if load_time < MAX_LOAD_TIME:
-                                        success_count += 1
-                                        latency_success = True
-                                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: final latency test with {name} success, status code: {resp.status_code}, load time: {load_time:.2f}ms")
-                                    break
-                            else:
-                                if resp.status_code == 200:
-                                    load_time = (time.time() - start_time) * 1000
-                                    total_load_time += load_time
-                                    if load_time < MAX_LOAD_TIME:
-                                        success_count += 1
-                                        latency_success = True
-                                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: final latency test with {name} success, status code: {resp.status_code}, load time: {load_time:.2f}ms")
-                                    break
+                            expected_status = 204 if link.endswith('generate_204') else 200
+                            if resp.status_code == expected_status:
+                                load_time = (time.time() - start_time) * 1000
+                                total_load_time += load_time
+                                if load_time < MAX_LOAD_TIME:
+                                    success_count += 1
+                                    latency_success = True
+                                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: final latency test with {name} success, status code: {resp.status_code}, load time: {load_time:.2f}ms")
+                                break
                             
                             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: final latency test with {name} failed with status code {resp.status_code}")
                         except Exception as e:
@@ -629,7 +722,7 @@ def secondary_filter():
                     error_msg = str(e)
                     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [DEBUG] {raw_ip}: final latency test loop exception - {error_msg}")
             
-            # 下载速度测试（优化：控制在5秒以内）
+            # 下载速度测试
             download_success = False
             download_test_start = time.time()
             for link, name in final_download_links:
@@ -728,13 +821,24 @@ def secondary_filter():
         else:
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [WARNING] No IPs passed final verification, using original filtered IPs")
     
+    # 获取 CloudflareSpeedTest 最佳节点
+    cfst_nodes = get_cloudflare_speedtest_nodes()
+    
+    # 整合结果
+    if cfst_nodes:
+        # 合并并去重
+        combined_ips = list(set(filtered_ips + cfst_nodes))
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Combined {len(combined_ips)} IPs from secondary filter and CloudflareSpeedTest")
+    else:
+        combined_ips = filtered_ips
+    
     # 生成新的TXT文件
     best_ip_file = os.path.join(BASE_DIR, BEST_IP_FILE)
-    if filtered_ips:
+    if combined_ips:
         with open(best_ip_file, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(sorted(filtered_ips)) + '\n')
+            f.write('\n'.join(sorted(combined_ips)) + '\n')
         elapsed_time = time.time() - start_time
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [SUCCESS] Secondary filter completed in {elapsed_time:.2f}s. Kept {len(filtered_ips)} IPs in {BEST_IP_FILE}.")
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [SUCCESS] Secondary filter completed in {elapsed_time:.2f}s. Kept {len(combined_ips)} IPs in {BEST_IP_FILE}.")
     else:
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] No IPs passed the secondary filter.")
 
@@ -759,27 +863,44 @@ def main():
                     proxy_ips.add(ip)
         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Loaded {len(proxy_ips)} proxy IPs from {PROXY_IP_FILE}")
     
+    # 每日仅执行一次IP基础筛选的机制
+    today = time.strftime('%Y-%m-%d')
+    last_run_file = os.path.join(BASE_DIR, 'last_run.txt')
+    need_base_filter = True
+    
+    if os.path.exists(last_run_file):
+        with open(last_run_file, 'r', encoding='utf-8') as f:
+            last_run = f.read().strip()
+        if last_run == today:
+            need_base_filter = False
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Base filter already executed today, skipping...")
+    
     # 处理文件
     summary = set()
-    for filename in CLASSIFY_FILES:
-        process_file(filename, summary, proxy_ips)
+    if need_base_filter:
+        for filename in CLASSIFY_FILES:
+            process_file(filename, summary, proxy_ips)
+        
+        # 检查处理结果
+        if summary:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Processed {len(summary)} IPs")
+            # 写入汇总文件
+            summary_path = os.path.join(BASE_DIR, SUMMARY_FILE)
+            with open(summary_path, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(sorted(list(summary))) + '\n')
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Wrote summary to {SUMMARY_FILE}")
+            # 更新最后运行时间
+            with open(last_run_file, 'w', encoding='utf-8') as f:
+                f.write(today)
+        else:
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] No IPs processed")
     
-    # 检查处理结果
-    if summary:
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Processed {len(summary)} IPs")
-        # 写入汇总文件
-        summary_path = os.path.join(BASE_DIR, SUMMARY_FILE)
-        with open(summary_path, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(sorted(list(summary))) + '\n')
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Wrote summary to {SUMMARY_FILE}")
-        # 执行二次筛选
-        secondary_filter()
-    elif os.path.exists(os.path.join(BASE_DIR, SUMMARY_FILE)):
-        # 如果已经存在SUMMARY_FILE，直接执行二次筛选
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Using existing summary file for secondary filter")
+    # 执行二次筛选
+    if os.path.exists(os.path.join(BASE_DIR, SUMMARY_FILE)):
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [INFO] Starting secondary filter...")
         secondary_filter()
     else:
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] No summary file found and no files to process")
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [ERROR] No summary file found")
     
     elapsed_time = time.time() - start_time
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [SUCCESS] Classification done in {elapsed_time:.2f}s.")
