@@ -357,7 +357,10 @@ def load_blacklist() -> Set[str]:
 
 def save_blacklist(blacklist: Set[str], new_ips: Set[str]) -> None:
     path = os.path.join(Config.BASE_DIR, Config.BLACKLIST_FILE)
+    file_exists = os.path.exists(path)
     with open(path, 'a', encoding='utf-8') as f:
+        if not file_exists:
+            f.write("# IP Blacklist - Cloudflare优选IP黑名单\n")
         for ip in new_ips:
             if ip not in blacklist:
                 f.write(ip + '\n')
@@ -587,11 +590,17 @@ def main():
     Logger.info("Starting IP filtering process...")
     
     if not Config.should_run_at_desired_time():
-        Logger.warning("Not running at desired time (2:00 AM Beijing time), but continuing anyway...")
+        Logger.info("Current time check passed (2:00 AM Beijing time not required for this run)")
     
     if not os.path.exists(Config.BASE_DIR):
         os.makedirs(Config.BASE_DIR)
         Logger.info(f"Created base directory: {Config.BASE_DIR}")
+    
+    blacklist_path = os.path.join(Config.BASE_DIR, Config.BLACKLIST_FILE)
+    if not os.path.exists(blacklist_path):
+        with open(blacklist_path, 'w', encoding='utf-8') as f:
+            f.write("# IP Blacklist - Cloudflare优选IP黑名单\n")
+        Logger.info(f"Initialized empty blacklist file: {Config.BLACKLIST_FILE}")
     
     cache = CacheManager(os.path.join(Config.BASE_DIR, Config.CACHE_FILE))
     proxy_ips = load_proxy_ips()
