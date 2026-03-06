@@ -2,7 +2,7 @@ name: Generate bestcf (Full Version)
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */12 * * *"
+    - cron: "0 18 * * *"
   push:
     branches:
       - main
@@ -118,7 +118,14 @@ jobs:
         with:
           tag_name: update-${{ env.update_version }}
           name: 优选更新 - ${{ env.update_version }}
-          files: ./bestcf/*.txt
+          files: |
+            ./bestcf/cmcc-ip.txt
+            ./bestcf/cucc-ip.txt
+            ./bestcf/ctcc-ip.txt
+            ./bestcf/bestcf-ip.txt
+            ./bestcf/proxy-ip.txt
+            ./bestcf/best-ip.txt
+            ./bestcf/all-countries-ip.txt
           body: "Cloudflare 优选数据自动更新。时间: ${{ env.update_version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
