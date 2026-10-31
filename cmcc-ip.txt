@@ -1,0 +1,718 @@
+104.17.22.231#CMCC-IPv4_CMLiu_1
+104.17.125.98#CMCC-IPv4_CMLiu_2
+104.16.240.177#CMCC-IPv4_CMLiu_3
+104.19.34.37#CMCC-IPv4_CMLiu_4
+104.17.187.57#CMCC-IPv4_CMLiu_5
+104.19.149.171#CMCC-IPv4_CMLiu_6
+104.17.145.43#CMCC-IPv4_CMLiu_7
+104.18.33.121#CMCC-IPv4_CMLiu_8
+<!DOCTYPE html>#CMCC-IPv6_CMLiu_1
+<html lang="zh-CN">#CMCC-IPv6_CMLiu_2
+#CMCC-IPv6_CMLiu_3
+<head>#CMCC-IPv6_CMLiu_4
+    <meta charset="UTF-8">#CMCC-IPv6_CMLiu_5
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">#CMCC-IPv6_CMLiu_6
+    <meta name="description" content="CloudFlare优选域名汇总 - 提供优质的CloudFlare CDN节点信息">#CMCC-IPv6_CMLiu_7
+    <meta name="keywords" content="CloudFlare,优选域名,CDN,优选IP">#CMCC-IPv6_CMLiu_8
+    <title>CloudFlare优选域名汇总 - CF优选域名</title>#CMCC-IPv6_CMLiu_9
+    <link rel="preconnect" href="https://fonts.googleapis.com">#CMCC-IPv6_CMLiu_10
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>#CMCC-IPv6_CMLiu_11
+    <link#CMCC-IPv6_CMLiu_12
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&family=Orbitron:wght@700;800;900&display=swap"#CMCC-IPv6_CMLiu_13
+        rel="stylesheet">#CMCC-IPv6_CMLiu_14
+    <link rel="stylesheet" href="style.css">#CMCC-IPv6_CMLiu_15
+</head>#CMCC-IPv6_CMLiu_16
+#CMCC-IPv6_CMLiu_17
+<body>#CMCC-IPv6_CMLiu_18
+    <!-- 视觉隐藏的 H1：保住文档大纲与 SEO 语义，站点标识由粘性导航品牌位承担 -->#CMCC-IPv6_CMLiu_19
+    <h1 class="sr-only">CloudFlare 优选域名汇总 — 提供优质的 CloudFlare CDN 节点信息</h1>#CMCC-IPv6_CMLiu_20
+#CMCC-IPv6_CMLiu_21
+    <!-- 顶部粘性导航：品牌 + 锚点导航 + 主题切换 -->#CMCC-IPv6_CMLiu_22
+    <nav class="top-nav" id="top" aria-label="站点导航">#CMCC-IPv6_CMLiu_23
+        <a class="nav-brand" href="#CMCC-IPv6_CMLiu_24
+        <span class="brand-tagline" aria-hidden="true">CloudFlare CDN 节点优选</span>#CMCC-IPv6_CMLiu_25
+        <div class="nav-links">#CMCC-IPv6_CMLiu_26
+            <a class="nav-link" href="#CMCC-IPv6_CMLiu_27
+                <span class="nav-link-icon" aria-hidden="true">#CMCC-IPv6_CMLiu_28
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_29
+                        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">#CMCC-IPv6_CMLiu_30
+                        <circle cx="12" cy="12" r="9" />#CMCC-IPv6_CMLiu_31
+                        <path d="M3.2 9.5h17.6M3.2 14.5h17.6" />#CMCC-IPv6_CMLiu_32
+                        <path d="M12 3a13.5 13.5 0 0 1 0 18a13.5 13.5 0 0 1 0-18z" />#CMCC-IPv6_CMLiu_33
+                    </svg>#CMCC-IPv6_CMLiu_34
+                </span>#CMCC-IPv6_CMLiu_35
+                <span class="nav-link-label">网络状态</span>#CMCC-IPv6_CMLiu_36
+            </a>#CMCC-IPv6_CMLiu_37
+            <a class="nav-link" href="#CMCC-IPv6_CMLiu_38
+                <span class="nav-link-icon" aria-hidden="true">#CMCC-IPv6_CMLiu_39
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_40
+                        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">#CMCC-IPv6_CMLiu_41
+                        <path d="M12 3.4l2.7 5.6 6.2.9-4.5 4.4 1.1 6.2-5.5-3-5.5 3 1.1-6.2L3.1 9.9l6.2-.9z" />#CMCC-IPv6_CMLiu_42
+                    </svg>#CMCC-IPv6_CMLiu_43
+                </span>#CMCC-IPv6_CMLiu_44
+                <span class="nav-link-label">优选域名</span>#CMCC-IPv6_CMLiu_45
+            </a>#CMCC-IPv6_CMLiu_46
+            <a class="nav-link" href="#CMCC-IPv6_CMLiu_47
+                <span class="nav-link-icon" aria-hidden="true">#CMCC-IPv6_CMLiu_48
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_49
+                        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">#CMCC-IPv6_CMLiu_50
+                        <path d="M6 3v12" />#CMCC-IPv6_CMLiu_51
+                        <circle cx="6" cy="18" r="3" />#CMCC-IPv6_CMLiu_52
+                        <circle cx="18" cy="6" r="3" />#CMCC-IPv6_CMLiu_53
+                        <path d="M18 9a9 9 0 0 1-9 9" />#CMCC-IPv6_CMLiu_54
+                    </svg>#CMCC-IPv6_CMLiu_55
+                </span>#CMCC-IPv6_CMLiu_56
+                <span class="nav-link-label">分流测试</span>#CMCC-IPv6_CMLiu_57
+            </a>#CMCC-IPv6_CMLiu_58
+            <a class="nav-link" href="#CMCC-IPv6_CMLiu_59
+                <span class="nav-link-icon" aria-hidden="true">#CMCC-IPv6_CMLiu_60
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_61
+                        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">#CMCC-IPv6_CMLiu_62
+                        <path d="m16 18 6-6-6-6" />#CMCC-IPv6_CMLiu_63
+                        <path d="m8 6-6 6 6 6" />#CMCC-IPv6_CMLiu_64
+                    </svg>#CMCC-IPv6_CMLiu_65
+                </span>#CMCC-IPv6_CMLiu_66
+                <span class="nav-link-label">API</span>#CMCC-IPv6_CMLiu_67
+            </a>#CMCC-IPv6_CMLiu_68
+            <a class="nav-link" href="#CMCC-IPv6_CMLiu_69
+                <span class="nav-link-icon" aria-hidden="true">#CMCC-IPv6_CMLiu_70
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_71
+                        stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">#CMCC-IPv6_CMLiu_72
+                        <rect x="3" y="3" width="7.5" height="7.5" rx="1.8" />#CMCC-IPv6_CMLiu_73
+                        <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.8" />#CMCC-IPv6_CMLiu_74
+                        <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.8" />#CMCC-IPv6_CMLiu_75
+                        <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.8" />#CMCC-IPv6_CMLiu_76
+                    </svg>#CMCC-IPv6_CMLiu_77
+                </span>#CMCC-IPv6_CMLiu_78
+                <span class="nav-link-label">更多资源</span>#CMCC-IPv6_CMLiu_79
+            </a>#CMCC-IPv6_CMLiu_80
+        </div>#CMCC-IPv6_CMLiu_81
+#CMCC-IPv6_CMLiu_82
+        <!-- CM 推荐入口：默认隐藏，仅在「站点内容加载完成 + 非中国大陆地区 + aff.json 拉取成功」后由 script.js 显示。#CMCC-IPv6_CMLiu_83
+             注意：作为 .top-nav 的直接子节点（而非放进 .nav-links 内）——移动端 .nav-links 会 position:fixed 拖到底部标签栏，#CMCC-IPv6_CMLiu_84
+             放进会被一起拖走，且会破坏 repeat(5,…) 五格栅格。置于 .nav-links 与 #CMCC-IPv6_CMLiu_85
+             绝不能带 data-page 属性，否则会被内联页签路由当页签接管。 -->#CMCC-IPv6_CMLiu_86
+        <button type="button" class="nav-link cm-nav-link" id="cmAffEntry" hidden aria-haspopup="dialog"#CMCC-IPv6_CMLiu_87
+            aria-label="打开 CM 推荐">#CMCC-IPv6_CMLiu_88
+            <span class="nav-link-icon" aria-hidden="true">#CMCC-IPv6_CMLiu_89
+                <!-- 礼盒图标（按 v4 反馈，从「CM 圆形字标」改回）。#CMCC-IPv6_CMLiu_90
+                     .nav-link-icon 容器必须保留：移动端 CSS 选择器#CMCC-IPv6_CMLiu_91
+                     .top-nav .cm-nav-link .nav-link-icon 依赖它做形态复位（撤销底部标签栏的图标胶囊底），#CMCC-IPv6_CMLiu_92
+                     且 .nav-link-icon svg 的 17px / 移动端 18px 尺寸规则直接作用在这个 svg 上。 -->#CMCC-IPv6_CMLiu_93
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_94
+                    stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">#CMCC-IPv6_CMLiu_95
+                    <rect x="2.5" y="7.5" width="19" height="4.5" rx="1.2" />#CMCC-IPv6_CMLiu_96
+                    <path d="M4.5 12v8.5h15V12" />#CMCC-IPv6_CMLiu_97
+                    <path d="M12 7.5V21" />#CMCC-IPv6_CMLiu_98
+                    <path d="M12 7.5H7.6a2.55 2.55 0 0 1 0-5.1C11.2 2.4 12 7.5 12 7.5z" />#CMCC-IPv6_CMLiu_99
+                    <path d="M12 7.5h4.4a2.55 2.55 0 0 0 0-5.1C12.8 2.4 12 7.5 12 7.5z" />#CMCC-IPv6_CMLiu_100
+                </svg>#CMCC-IPv6_CMLiu_101
+            </span>#CMCC-IPv6_CMLiu_102
+            <span class="nav-link-label">CM推荐</span>#CMCC-IPv6_CMLiu_103
+        </button>#CMCC-IPv6_CMLiu_104
+#CMCC-IPv6_CMLiu_105
+        <button id="theme-switcher" aria-label="切换主题">#CMCC-IPv6_CMLiu_106
+            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_107
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">#CMCC-IPv6_CMLiu_108
+                <circle cx="12" cy="12" r="5"></circle>#CMCC-IPv6_CMLiu_109
+                <line x1="12" y1="1" x2="12" y2="3"></line>#CMCC-IPv6_CMLiu_110
+                <line x1="12" y1="21" x2="12" y2="23"></line>#CMCC-IPv6_CMLiu_111
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>#CMCC-IPv6_CMLiu_112
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>#CMCC-IPv6_CMLiu_113
+                <line x1="1" y1="12" x2="3" y2="12"></line>#CMCC-IPv6_CMLiu_114
+                <line x1="21" y1="12" x2="23" y2="12"></line>#CMCC-IPv6_CMLiu_115
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>#CMCC-IPv6_CMLiu_116
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>#CMCC-IPv6_CMLiu_117
+            </svg>#CMCC-IPv6_CMLiu_118
+            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_119
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">#CMCC-IPv6_CMLiu_120
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>#CMCC-IPv6_CMLiu_121
+            </svg>#CMCC-IPv6_CMLiu_122
+        </button>#CMCC-IPv6_CMLiu_123
+    </nav>#CMCC-IPv6_CMLiu_124
+#CMCC-IPv6_CMLiu_125
+    <div class="container">#CMCC-IPv6_CMLiu_126
+        <!-- 推广板块：在线优选CF官方域名 -->#CMCC-IPv6_CMLiu_127
+        <section class="promo-banner" aria-labelledby="promo-title">#CMCC-IPv6_CMLiu_128
+            <div class="promo-content">#CMCC-IPv6_CMLiu_129
+                <span class="promo-icon" aria-hidden="true">🚀</span>#CMCC-IPv6_CMLiu_130
+                <div class="promo-text">#CMCC-IPv6_CMLiu_131
+                    <h2 class="promo-title" id="promo-title">在线优选 CF官方域名</h2>#CMCC-IPv6_CMLiu_132
+                    <p class="promo-desc">在线一键优选 CloudFlare 官方域名，自动获取最新官方优选地址，即开即用。</p>#CMCC-IPv6_CMLiu_133
+                </div>#CMCC-IPv6_CMLiu_134
+            </div>#CMCC-IPv6_CMLiu_135
+            <a class="promo-cta" href="https://bestcf.fxxk.dedyn.io/" target="_blank" rel="noopener noreferrer"#CMCC-IPv6_CMLiu_136
+                aria-label="立即前往在线优选CF官方域名（新窗口打开）">#CMCC-IPv6_CMLiu_137
+                立即前往#CMCC-IPv6_CMLiu_138
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_139
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"#CMCC-IPv6_CMLiu_140
+                    aria-hidden="true">#CMCC-IPv6_CMLiu_141
+                    <path d="M15 3h6v6"></path>#CMCC-IPv6_CMLiu_142
+                    <path d="M10 14 21 3"></path>#CMCC-IPv6_CMLiu_143
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>#CMCC-IPv6_CMLiu_144
+                </svg>#CMCC-IPv6_CMLiu_145
+            </a>#CMCC-IPv6_CMLiu_146
+        </section>#CMCC-IPv6_CMLiu_147
+#CMCC-IPv6_CMLiu_148
+        <!-- 页面：网络状态（首页默认展示） -->#CMCC-IPv6_CMLiu_149
+        <div class="page" data-page="network">#CMCC-IPv6_CMLiu_150
+        <!-- 网络出口信息 -->#CMCC-IPv6_CMLiu_151
+        <div class="port-info" id="network">#CMCC-IPv6_CMLiu_152
+            <h3 class="section-title">🌍 当前网络信息</h3>#CMCC-IPv6_CMLiu_153
+            <p class="section-subtitle">实时检测您当前的出口 IP 与国内外连通性质量，支持 IP 隐私脱敏；点击 IP 可查看归属与风险详情，下方卡片为常用站点的实时延迟监测。</p>#CMCC-IPv6_CMLiu_154
+            <div class="network-cards-container">#CMCC-IPv6_CMLiu_155
+                <div class="network-card">#CMCC-IPv6_CMLiu_156
+                    <div class="network-card-title">#CMCC-IPv6_CMLiu_157
+                        <span class="status-indicator" id="status-ipip"></span>#CMCC-IPv6_CMLiu_158
+                        <div class="title-text">#CMCC-IPv6_CMLiu_159
+                            <div class="title-main">国内测试</div>#CMCC-IPv6_CMLiu_160
+                            <div class="title-subtitle" id="ipip-subtitle"></div>#CMCC-IPv6_CMLiu_161
+                        </div>#CMCC-IPv6_CMLiu_162
+                    </div>#CMCC-IPv6_CMLiu_163
+                    <div class="network-info-content">#CMCC-IPv6_CMLiu_164
+                        <span id="ipip-ip" class="ip-text">加载中...</span>#CMCC-IPv6_CMLiu_165
+                        <div class="location-text">#CMCC-IPv6_CMLiu_166
+                            <span id="ipip-country" class="country-text">-</span>#CMCC-IPv6_CMLiu_167
+                        </div>#CMCC-IPv6_CMLiu_168
+                        <div class="network-tip">· 您访问国内站点所使用的IP</div>#CMCC-IPv6_CMLiu_169
+                    </div>#CMCC-IPv6_CMLiu_170
+                </div>#CMCC-IPv6_CMLiu_171
+#CMCC-IPv6_CMLiu_172
+                <div class="network-card">#CMCC-IPv6_CMLiu_173
+                    <div class="network-card-title">#CMCC-IPv6_CMLiu_174
+                        <span class="status-indicator" id="status-overseas"></span>#CMCC-IPv6_CMLiu_175
+                        <div class="title-text">#CMCC-IPv6_CMLiu_176
+                            <div class="title-main">国外测试</div>#CMCC-IPv6_CMLiu_177
+                            <div class="title-subtitle" id="overseas-subtitle">漏网之鱼</div>#CMCC-IPv6_CMLiu_178
+                        </div>#CMCC-IPv6_CMLiu_179
+                    </div>#CMCC-IPv6_CMLiu_180
+                    <div class="network-info-content">#CMCC-IPv6_CMLiu_181
+                        <span id="overseas-ip" class="ip-text">加载中...</span>#CMCC-IPv6_CMLiu_182
+                        <div class="location-text">#CMCC-IPv6_CMLiu_183
+                            <span id="overseas-country" class="country-text">-</span>#CMCC-IPv6_CMLiu_184
+                        </div>#CMCC-IPv6_CMLiu_185
+                        <div class="network-tip">· 您访问没有被封的国外站点所使用的IP</div>#CMCC-IPv6_CMLiu_186
+                    </div>#CMCC-IPv6_CMLiu_187
+                </div>#CMCC-IPv6_CMLiu_188
+#CMCC-IPv6_CMLiu_189
+                <div class="network-card">#CMCC-IPv6_CMLiu_190
+                    <div class="network-card-title">#CMCC-IPv6_CMLiu_191
+                        <span class="status-indicator" id="status-cf"></span>#CMCC-IPv6_CMLiu_192
+                        <div class="title-text">#CMCC-IPv6_CMLiu_193
+                            <div class="title-main">CloudFlare</div>#CMCC-IPv6_CMLiu_194
+                            <div class="title-subtitle" id="cf-subtitle">ProxyIP</div>#CMCC-IPv6_CMLiu_195
+                        </div>#CMCC-IPv6_CMLiu_196
+                    </div>#CMCC-IPv6_CMLiu_197
+                    <div class="network-info-content">#CMCC-IPv6_CMLiu_198
+                        <span id="cf-ip" class="ip-text">加载中...</span>#CMCC-IPv6_CMLiu_199
+                        <div class="location-text">#CMCC-IPv6_CMLiu_200
+                            <span id="cf-country" class="country-text">-</span>#CMCC-IPv6_CMLiu_201
+                        </div>#CMCC-IPv6_CMLiu_202
+                        <div class="network-tip">· 您访问CFCDN站点所使用的落地IP</div>#CMCC-IPv6_CMLiu_203
+                    </div>#CMCC-IPv6_CMLiu_204
+                </div>#CMCC-IPv6_CMLiu_205
+#CMCC-IPv6_CMLiu_206
+                <div class="network-card">#CMCC-IPv6_CMLiu_207
+                    <div class="network-card-title">#CMCC-IPv6_CMLiu_208
+                        <span class="status-indicator" id="status-twitter"></span>#CMCC-IPv6_CMLiu_209
+                        <div class="title-text">#CMCC-IPv6_CMLiu_210
+                            <div class="title-main">墙外测试</div>#CMCC-IPv6_CMLiu_211
+                            <div class="title-subtitle" id="twitter-subtitle"><span#CMCC-IPv6_CMLiu_212
+                                    class="subtitle-full"><span#CMCC-IPv6_CMLiu_213
+                                        class="tw-subtitle-twitter cf-subtitle-switch" data-tw-target-index="0"#CMCC-IPv6_CMLiu_214
+                                        role="button" tabindex="0">推特(X.com)</span><span#CMCC-IPv6_CMLiu_215
+                                        class="cf-subtitle-sep"> / </span><span#CMCC-IPv6_CMLiu_216
+                                        class="tw-subtitle-google cf-subtitle-switch"#CMCC-IPv6_CMLiu_217
+                                        data-tw-target-index="1">谷歌(Google)</span></span><span#CMCC-IPv6_CMLiu_218
+                                    class="subtitle-compact"><span#CMCC-IPv6_CMLiu_219
+                                        class="tw-subtitle-twitter cf-subtitle-switch" data-tw-target-index="0"#CMCC-IPv6_CMLiu_220
+                                        role="button" tabindex="0">X</span><span#CMCC-IPv6_CMLiu_221
+                                        class="cf-subtitle-sep"> / </span><span#CMCC-IPv6_CMLiu_222
+                                        class="tw-subtitle-google cf-subtitle-switch" data-tw-target-index="1"#CMCC-IPv6_CMLiu_223
+                                        role="button" tabindex="0">谷歌</span></span></div>#CMCC-IPv6_CMLiu_224
+                        </div>#CMCC-IPv6_CMLiu_225
+                    </div>#CMCC-IPv6_CMLiu_226
+                    <div class="network-info-content">#CMCC-IPv6_CMLiu_227
+                        <span id="twitter-ip" class="ip-text">加载中...</span>#CMCC-IPv6_CMLiu_228
+                        <div class="location-text">#CMCC-IPv6_CMLiu_229
+                            <span id="twitter-country" class="country-text">-</span>#CMCC-IPv6_CMLiu_230
+                        </div>#CMCC-IPv6_CMLiu_231
+                        <div class="network-tip" id="twitter-tip">· 您访问墙外站点所使用的IP</div>#CMCC-IPv6_CMLiu_232
+                    </div>#CMCC-IPv6_CMLiu_233
+                </div>#CMCC-IPv6_CMLiu_234
+            </div>#CMCC-IPv6_CMLiu_235
+#CMCC-IPv6_CMLiu_236
+            <!-- 延迟分区行（移动端紧凑形态显示，桌面隐藏；色条图例与卡片左缘色条呼应） -->#CMCC-IPv6_CMLiu_237
+            <div class="latency-head">#CMCC-IPv6_CMLiu_238
+                <span class="latency-head-title">⏱ 延迟测试</span>#CMCC-IPv6_CMLiu_239
+                <span class="lat-legend">#CMCC-IPv6_CMLiu_240
+                    <span class="lat-legend-item"><span class="lat-legend-dot domestic"></span>国内</span>#CMCC-IPv6_CMLiu_241
+                    <span class="lat-legend-item"><span class="lat-legend-dot international"></span>国际</span>#CMCC-IPv6_CMLiu_242
+                </span>#CMCC-IPv6_CMLiu_243
+            </div>#CMCC-IPv6_CMLiu_244
+#CMCC-IPv6_CMLiu_245
+            <!--  网站延迟测试  -->#CMCC-IPv6_CMLiu_246
+            <div class="latency-cards" id="latency-cards">#CMCC-IPv6_CMLiu_247
+                <!-- 卡片将通过JavaScript动态生成 -->#CMCC-IPv6_CMLiu_248
+            </div>#CMCC-IPv6_CMLiu_249
+        </div>#CMCC-IPv6_CMLiu_250
+        </div>#CMCC-IPv6_CMLiu_251
+#CMCC-IPv6_CMLiu_252
+        <!-- 页面：优选域名（页头 hero + 主操作区 + 配置速查 + 延迟统计 + 免责声明） -->#CMCC-IPv6_CMLiu_253
+        <div class="page" data-page="domains" hidden>#CMCC-IPv6_CMLiu_254
+        <section class="section" id="domains">#CMCC-IPv6_CMLiu_255
+            <!-- 页头区：一屏说清「这是什么 + 能给你什么」 -->#CMCC-IPv6_CMLiu_256
+            <header class="page-hero">#CMCC-IPv6_CMLiu_257
+                <div class="hero-inner">#CMCC-IPv6_CMLiu_258
+                    <span class="hero-eyebrow"><span class="dot" aria-hidden="true"></span>服务运行中</span>#CMCC-IPv6_CMLiu_259
+                    <h2>优选域名，<em>一复制即用</em></h2>#CMCC-IPv6_CMLiu_260
+                    <p>#CMCC-IPv6_CMLiu_261
+                        泛域名解析到 CloudFlare 优选节点，无需自行测速挑 IP。任意前缀等价可用 ——#CMCC-IPv6_CMLiu_262
+                        本页已为你随机生成一个前缀，点击域名旁的骰子图标可随时更换。填入客户端的#CMCC-IPv6_CMLiu_263
+                        <code>server</code> / <code>address</code> 字段并选择 CloudFlare 支持的#CMCC-IPv6_CMLiu_264
+                        HTTP / HTTPS 端口即可生效。#CMCC-IPv6_CMLiu_265
+                    </p>#CMCC-IPv6_CMLiu_266
+                    <div class="hero-meta">#CMCC-IPv6_CMLiu_267
+                        <span class="hero-meta-item">线路支持　<b>电信 / 联通 / 移动</b></span>#CMCC-IPv6_CMLiu_268
+                        <span class="hero-meta-item">可用端口　<b>HTTP / HTTPS 共 13 个</b></span>#CMCC-IPv6_CMLiu_269
+                        <span class="hero-meta-item">前缀规则　<b>任意前缀均可</b></span>#CMCC-IPv6_CMLiu_270
+                    </div>#CMCC-IPv6_CMLiu_271
+                </div>#CMCC-IPv6_CMLiu_272
+            </header>#CMCC-IPv6_CMLiu_273
+#CMCC-IPv6_CMLiu_274
+            <!-- 主操作区 -->#CMCC-IPv6_CMLiu_275
+            <h3 class="section-title">🌟 主推优选域名</h3>#CMCC-IPv6_CMLiu_276
+            <p class="section-subtitle">点击下方任一域名即可复制。泛域名任意前缀效果相同（含上方随机前缀），推荐用随机前缀免去记忆与挑选。</p>#CMCC-IPv6_CMLiu_277
+#CMCC-IPv6_CMLiu_278
+            <div class="primary-card">#CMCC-IPv6_CMLiu_279
+                <div class="primary-top">#CMCC-IPv6_CMLiu_280
+                    <span class="badge badge-wildcard">✦ 泛域名</span>#CMCC-IPv6_CMLiu_281
+                    <span class="badge badge-triple">📊 三网优选</span>#CMCC-IPv6_CMLiu_282
+                    <span class="badge badge-https">🔒 支持 HTTPS</span>#CMCC-IPv6_CMLiu_283
+                </div>#CMCC-IPv6_CMLiu_284
+#CMCC-IPv6_CMLiu_285
+                <!-- 主域名行：前缀随机生成（无 JS 时兜底为 youxuan）；点击域名或按钮复制，骰子按钮重新随机 -->#CMCC-IPv6_CMLiu_286
+                <div class="domain-copy-row">#CMCC-IPv6_CMLiu_287
+                    <button type="button" class="domain-hit" id="domainHit" data-copy="youxuan.cf.090227.xyz"#CMCC-IPv6_CMLiu_288
+                        aria-label="复制优选域名 youxuan.cf.090227.xyz">#CMCC-IPv6_CMLiu_289
+                        <span class="domain-main"><span class="prefix" id="domainPrefix">youxuan</span><span#CMCC-IPv6_CMLiu_290
+                                class="domain-accent">.cf.090227.xyz</span></span>#CMCC-IPv6_CMLiu_291
+                    </button>#CMCC-IPv6_CMLiu_292
+                    <button type="button" class="randomize-btn" id="randomizeBtn" aria-label="随机更换域名前缀"#CMCC-IPv6_CMLiu_293
+                        title="随机更换前缀">#CMCC-IPv6_CMLiu_294
+                        <svg xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_295
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"#CMCC-IPv6_CMLiu_296
+                            aria-hidden="true">#CMCC-IPv6_CMLiu_297
+                            <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.8-1.1 2-1.7 3.3-1.7H22"></path>#CMCC-IPv6_CMLiu_298
+                            <path d="m18 2 4 4-4 4"></path>#CMCC-IPv6_CMLiu_299
+                            <path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"></path>#CMCC-IPv6_CMLiu_300
+                            <path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"></path>#CMCC-IPv6_CMLiu_301
+                            <path d="m18 14 4 4-4 4"></path>#CMCC-IPv6_CMLiu_302
+                        </svg>#CMCC-IPv6_CMLiu_303
+                    </button>#CMCC-IPv6_CMLiu_304
+                    <button type="button" class="copy-affordance" id="copyBtn" data-copy="youxuan.cf.090227.xyz"#CMCC-IPv6_CMLiu_305
+                        aria-label="复制当前优选域名">#CMCC-IPv6_CMLiu_306
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"#CMCC-IPv6_CMLiu_307
+                            aria-hidden="true">#CMCC-IPv6_CMLiu_308
+                            <path#CMCC-IPv6_CMLiu_309
+                                d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />#CMCC-IPv6_CMLiu_310
+                        </svg>#CMCC-IPv6_CMLiu_311
+                        <span class="copy-text">复制域名</span>#CMCC-IPv6_CMLiu_312
+                    </button>#CMCC-IPv6_CMLiu_313
+                </div>#CMCC-IPv6_CMLiu_314
+#CMCC-IPv6_CMLiu_315
+                <!-- 等价别名：泛域名任意前缀等价 -->#CMCC-IPv6_CMLiu_316
+                <div class="alias-block">#CMCC-IPv6_CMLiu_317
+                    <span class="alias-label">等价写法 <span class="hint">— 泛域名任意前缀效果相同（含上方随机前缀），点击可直接复制</span></span>#CMCC-IPv6_CMLiu_318
+                    <div class="alias-list">#CMCC-IPv6_CMLiu_319
+                        <!-- data-copy 用 punycode（xn--4oq269m = 「优选」）：部分客户端不支持中文域名，复制需为 ASCII 兼容编码；显示文本保持中文 -->#CMCC-IPv6_CMLiu_320
+                        <button type="button" class="alias-chip" data-copy="xn--4oq269m.cf.090227.xyz"#CMCC-IPv6_CMLiu_321
+                            aria-label="复制 xn--4oq269m.cf.090227.xyz"><span class="caret" aria-hidden="true">›</span>#CMCC-IPv6_CMLiu_322
+                            优选.cf.090227.xyz</button>#CMCC-IPv6_CMLiu_323
+                        <button type="button" class="alias-chip" data-copy="123.cf.090227.xyz"#CMCC-IPv6_CMLiu_324
+                            aria-label="复制 123.cf.090227.xyz"><span class="caret" aria-hidden="true">›</span>#CMCC-IPv6_CMLiu_325
+                            123.cf.090227.xyz</button>#CMCC-IPv6_CMLiu_326
+                        <button type="button" class="alias-chip" data-copy="cf.090227.xyz"#CMCC-IPv6_CMLiu_327
+                            aria-label="复制主域名 cf.090227.xyz"><span class="caret" aria-hidden="true">›</span>#CMCC-IPv6_CMLiu_328
+                            cf.090227.xyz</button>#CMCC-IPv6_CMLiu_329
+                    </div>#CMCC-IPv6_CMLiu_330
+                </div>#CMCC-IPv6_CMLiu_331
+#CMCC-IPv6_CMLiu_332
+                <!-- 三步使用指引 -->#CMCC-IPv6_CMLiu_333
+                <div class="steps">#CMCC-IPv6_CMLiu_334
+                    <div class="step">#CMCC-IPv6_CMLiu_335
+                        <span class="step-num" aria-hidden="true">1</span>#CMCC-IPv6_CMLiu_336
+                        <span class="step-text"><b>复制域名</b>点击上方域名或别名，自动写入剪贴板。</span>#CMCC-IPv6_CMLiu_337
+                    </div>#CMCC-IPv6_CMLiu_338
+                    <div class="step">#CMCC-IPv6_CMLiu_339
+                        <span class="step-num" aria-hidden="true">2</span>#CMCC-IPv6_CMLiu_340
+                        <span class="step-text"><b>填入客户端</b>粘贴到 <code>server</code> /#CMCC-IPv6_CMLiu_341
+                            <code>address</code> 字段。</span>#CMCC-IPv6_CMLiu_342
+                    </div>#CMCC-IPv6_CMLiu_343
+                    <div class="step">#CMCC-IPv6_CMLiu_344
+                        <span class="step-num" aria-hidden="true">3</span>#CMCC-IPv6_CMLiu_345
+                        <span class="step-text"><b>选择端口</b>使用 CloudFlare 支持的任意 HTTP / HTTPS 端口即可生效。</span>#CMCC-IPv6_CMLiu_346
+                    </div>#CMCC-IPv6_CMLiu_347
+                </div>#CMCC-IPv6_CMLiu_348
+            </div>#CMCC-IPv6_CMLiu_349
+#CMCC-IPv6_CMLiu_350
+            <!-- 延迟统计：直接引用 vps789.com 实时统计图（本站不自产三网延迟数据） -->#CMCC-IPv6_CMLiu_351
+            <h3 class="section-title">📊 延迟统计</h3>#CMCC-IPv6_CMLiu_352
+            <p class="section-subtitle">实时三网延迟统计图由 vps789.com 提供，直观反映当前优选域名在各线路的质量表现。</p>#CMCC-IPv6_CMLiu_353
+#CMCC-IPv6_CMLiu_354
+            <div class="chart-shell">#CMCC-IPv6_CMLiu_355
+                <div class="chart-caption">#CMCC-IPv6_CMLiu_356
+                    <span>📈 三网延迟分布（实时统计）</span>#CMCC-IPv6_CMLiu_357
+                    <span>数据来源：<a class="chart-source" href="https://vps789.com/cfip/?remarks=domain"#CMCC-IPv6_CMLiu_358
+                            target="_blank" rel="noopener noreferrer"#CMCC-IPv6_CMLiu_359
+                            aria-label="前往 vps789.com 查看延迟统计（新窗口打开）">vps789.com</a></span>#CMCC-IPv6_CMLiu_360
+                </div>#CMCC-IPv6_CMLiu_361
+                <img class="chart-img lazy-image" src="./img.png" data-src="https://vps789.com/public/view/13423"#CMCC-IPv6_CMLiu_362
+                    alt="优选域名三网延迟统计图">#CMCC-IPv6_CMLiu_363
+            </div>#CMCC-IPv6_CMLiu_364
+#CMCC-IPv6_CMLiu_365
+            <div class="notice">#CMCC-IPv6_CMLiu_366
+                <span class="notice-icon" aria-hidden="true">⚠️</span>#CMCC-IPv6_CMLiu_367
+                <span>#CMCC-IPv6_CMLiu_368
+                    <strong>免责声明</strong>#CMCC-IPv6_CMLiu_369
+                    本网站的所有信息仅供参考。我们尽力确保信息的准确性和完整性，但对于信息的准确性、完整性和及时性不做任何明示或暗示的保证或声明。用户需自行承担使用本网站信息的风险。同时，禁止使用本站信息进行任何违法违规活动。#CMCC-IPv6_CMLiu_370
+                </span>#CMCC-IPv6_CMLiu_371
+            </div>#CMCC-IPv6_CMLiu_372
+        </section>#CMCC-IPv6_CMLiu_373
+        </div>#CMCC-IPv6_CMLiu_374
+#CMCC-IPv6_CMLiu_375
+        <!-- 页面：分流测试（对齐 ip.skk.moe/split-tunnel 的测试逻辑与排版） -->#CMCC-IPv6_CMLiu_376
+        <div class="page" data-page="splittunnel" hidden>#CMCC-IPv6_CMLiu_377
+        <section class="section split-section" id="splittunnel">#CMCC-IPv6_CMLiu_378
+            <h2 class="section-title">网站分流测试</h2>#CMCC-IPv6_CMLiu_379
+#CMCC-IPv6_CMLiu_380
+            <div class="split-table-wrap">#CMCC-IPv6_CMLiu_381
+                <table class="split-table">#CMCC-IPv6_CMLiu_382
+                    <thead>#CMCC-IPv6_CMLiu_383
+                        <tr>#CMCC-IPv6_CMLiu_384
+                            <th class="split-col-website">网站</th>#CMCC-IPv6_CMLiu_385
+                            <th class="split-col-country">国家</th>#CMCC-IPv6_CMLiu_386
+                            <th class="split-col-ip">IP</th>#CMCC-IPv6_CMLiu_387
+                            <th class="split-col-geo">归属地</th>#CMCC-IPv6_CMLiu_388
+                            <th class="split-col-asn">ASN</th>#CMCC-IPv6_CMLiu_389
+                        </tr>#CMCC-IPv6_CMLiu_390
+                    </thead>#CMCC-IPv6_CMLiu_391
+                    <tbody id="split-tbody">#CMCC-IPv6_CMLiu_392
+                        <!-- 行由 JavaScript 动态生成 -->#CMCC-IPv6_CMLiu_393
+                    </tbody>#CMCC-IPv6_CMLiu_394
+                </table>#CMCC-IPv6_CMLiu_395
+            </div>#CMCC-IPv6_CMLiu_396
+        </section>#CMCC-IPv6_CMLiu_397
+        </div>#CMCC-IPv6_CMLiu_398
+#CMCC-IPv6_CMLiu_399
+        <!-- 页面：API（仅 API 区块） -->#CMCC-IPv6_CMLiu_400
+        <div class="page" data-page="api" hidden>#CMCC-IPv6_CMLiu_401
+        <section class="section" id="api">#CMCC-IPv6_CMLiu_402
+            <h2 class="section-title">🔌 优选官方IP的API</h2>#CMCC-IPv6_CMLiu_403
+            <p class="section-subtitle">按运营商线路返回官方优选 IP 列表，点击「复制」获取完整 API 地址；<code>ips</code> 参数用于指定返回的 IP 数量。</p>#CMCC-IPv6_CMLiu_404
+            <div class="api-section">#CMCC-IPv6_CMLiu_405
+                <ul class="api-list">#CMCC-IPv6_CMLiu_406
+                    <li class="api-item">#CMCC-IPv6_CMLiu_407
+                        <span class="api-carrier carrier-ct">电信</span>#CMCC-IPv6_CMLiu_408
+                        <code class="api-url">/ct?ips=6</code>#CMCC-IPv6_CMLiu_409
+                        <span class="api-desc">返回 6 个电信线路优选 IP</span>#CMCC-IPv6_CMLiu_410
+                        <button class="copy-btn-sm" onclick="copyDomain('/ct?ips=6')" aria-label="复制电信线路 API 地址">复制</button>#CMCC-IPv6_CMLiu_411
+                        <div class="api-preview" data-api="/ct?ips=6">#CMCC-IPv6_CMLiu_412
+                            <div class="api-preview-head">#CMCC-IPv6_CMLiu_413
+                                <span class="api-preview-title">📡 响应预览</span>#CMCC-IPv6_CMLiu_414
+                                <button class="api-refresh-btn" type="button" aria-label="刷新电信接口响应预览">↻ 刷新</button>#CMCC-IPv6_CMLiu_415
+                            </div>#CMCC-IPv6_CMLiu_416
+                            <div class="api-preview-body"><span class="api-preview-loading">加载中…</span></div>#CMCC-IPv6_CMLiu_417
+                        </div>#CMCC-IPv6_CMLiu_418
+                    </li>#CMCC-IPv6_CMLiu_419
+                    <li class="api-item">#CMCC-IPv6_CMLiu_420
+                        <span class="api-carrier carrier-cu">联通</span>#CMCC-IPv6_CMLiu_421
+                        <code class="api-url">/cu</code>#CMCC-IPv6_CMLiu_422
+                        <span class="api-desc">返回联通线路优选 IP</span>#CMCC-IPv6_CMLiu_423
+                        <button class="copy-btn-sm" onclick="copyDomain('/cu')" aria-label="复制联通线路 API 地址">复制</button>#CMCC-IPv6_CMLiu_424
+                        <div class="api-preview" data-api="/cu">#CMCC-IPv6_CMLiu_425
+                            <div class="api-preview-head">#CMCC-IPv6_CMLiu_426
+                                <span class="api-preview-title">📡 响应预览</span>#CMCC-IPv6_CMLiu_427
+                                <button class="api-refresh-btn" type="button" aria-label="刷新联通接口响应预览">↻ 刷新</button>#CMCC-IPv6_CMLiu_428
+                            </div>#CMCC-IPv6_CMLiu_429
+                            <div class="api-preview-body"><span class="api-preview-loading">加载中…</span></div>#CMCC-IPv6_CMLiu_430
+                        </div>#CMCC-IPv6_CMLiu_431
+                    </li>#CMCC-IPv6_CMLiu_432
+                    <li class="api-item">#CMCC-IPv6_CMLiu_433
+                        <span class="api-carrier carrier-cmcc">移动</span>#CMCC-IPv6_CMLiu_434
+                        <code class="api-url">/cmcc?ips=8</code>#CMCC-IPv6_CMLiu_435
+                        <span class="api-desc">返回 8 个移动线路优选 IP</span>#CMCC-IPv6_CMLiu_436
+                        <button class="copy-btn-sm" onclick="copyDomain('/cmcc?ips=8')" aria-label="复制移动线路 API 地址">复制</button>#CMCC-IPv6_CMLiu_437
+                        <div class="api-preview" data-api="/cmcc?ips=8">#CMCC-IPv6_CMLiu_438
+                            <div class="api-preview-head">#CMCC-IPv6_CMLiu_439
+                                <span class="api-preview-title">📡 响应预览</span>#CMCC-IPv6_CMLiu_440
+                                <button class="api-refresh-btn" type="button" aria-label="刷新移动接口响应预览">↻ 刷新</button>#CMCC-IPv6_CMLiu_441
+                            </div>#CMCC-IPv6_CMLiu_442
+                            <div class="api-preview-body"><span class="api-preview-loading">加载中…</span></div>#CMCC-IPv6_CMLiu_443
+                        </div>#CMCC-IPv6_CMLiu_444
+                    </li>#CMCC-IPv6_CMLiu_445
+                </ul>#CMCC-IPv6_CMLiu_446
+                <p class="api-note">💡 将返回的优选 IP 填入代理配置的 <code>address</code>（或 <code>server</code>）字段，端口保持 Cloudflare 支持的 HTTPS 端口（443、2053、2083、2087、2096、8443）即可。</p>#CMCC-IPv6_CMLiu_447
+            </div>#CMCC-IPv6_CMLiu_448
+        </section>#CMCC-IPv6_CMLiu_449
+        </div>#CMCC-IPv6_CMLiu_450
+#CMCC-IPv6_CMLiu_451
+        <!-- 页面：更多资源 -->#CMCC-IPv6_CMLiu_452
+        <div class="page" data-page="resources" hidden>#CMCC-IPv6_CMLiu_453
+        <div class="resources-section" id="resources">#CMCC-IPv6_CMLiu_454
+            <h3 class="section-title">🔗 更多优选内容</h3>#CMCC-IPv6_CMLiu_455
+            <div class="resources-list">#CMCC-IPv6_CMLiu_456
+                <a class="resource-link" href="https://vps789.com/cfip/?remarks=domain" target="_blank"#CMCC-IPv6_CMLiu_457
+                    rel="noopener noreferrer">#CMCC-IPv6_CMLiu_458
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_459
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"#CMCC-IPv6_CMLiu_460
+                        aria-hidden="true">#CMCC-IPv6_CMLiu_461
+                        <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>#CMCC-IPv6_CMLiu_462
+                        <path d="M22 12A10 10 0 0 0 12 2v10z"></path>#CMCC-IPv6_CMLiu_463
+                    </svg>#CMCC-IPv6_CMLiu_464
+                    <span class="resource-text">#CMCC-IPv6_CMLiu_465
+                        <span class="resource-name">vps789.com</span>#CMCC-IPv6_CMLiu_466
+                        <span class="resource-desc">Cloudflare 优选 IP 在线检测与延迟统计面板</span>#CMCC-IPv6_CMLiu_467
+                    </span>#CMCC-IPv6_CMLiu_468
+                </a>#CMCC-IPv6_CMLiu_469
+                <a class="resource-link" href="https://ipdb.api.030101.xyz" target="_blank" rel="noopener noreferrer">#CMCC-IPv6_CMLiu_470
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_471
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"#CMCC-IPv6_CMLiu_472
+                        aria-hidden="true">#CMCC-IPv6_CMLiu_473
+                        <path d="M4 7v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V7"></path>#CMCC-IPv6_CMLiu_474
+                        <path d="M12 12L4 7"></path>#CMCC-IPv6_CMLiu_475
+                        <path d="M20 7l-8 5"></path>#CMCC-IPv6_CMLiu_476
+                        <path d="M12 2v10"></path>#CMCC-IPv6_CMLiu_477
+                    </svg>#CMCC-IPv6_CMLiu_478
+                    <span class="resource-text">#CMCC-IPv6_CMLiu_479
+                        <span class="resource-name">ipdb.api.030101.xyz</span>#CMCC-IPv6_CMLiu_480
+                        <span class="resource-desc">聚合 IP 数据库 API，可用于拉取 IP 段数据</span>#CMCC-IPv6_CMLiu_481
+                    </span>#CMCC-IPv6_CMLiu_482
+                </a>#CMCC-IPv6_CMLiu_483
+                <a class="resource-link" href="https://www.wetest.vip/page/cloudflare/address_v4.html" target="_blank"#CMCC-IPv6_CMLiu_484
+                    rel="noopener noreferrer">#CMCC-IPv6_CMLiu_485
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_486
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"#CMCC-IPv6_CMLiu_487
+                        aria-hidden="true">#CMCC-IPv6_CMLiu_488
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>#CMCC-IPv6_CMLiu_489
+                    </svg>#CMCC-IPv6_CMLiu_490
+                    <span class="resource-text">#CMCC-IPv6_CMLiu_491
+                        <span class="resource-name">wetest.vip</span>#CMCC-IPv6_CMLiu_492
+                        <span class="resource-desc">Cloudflare 优选 IP 在线测速工具</span>#CMCC-IPv6_CMLiu_493
+                    </span>#CMCC-IPv6_CMLiu_494
+                </a>#CMCC-IPv6_CMLiu_495
+                <a class="resource-link" href="https://ip.164746.xyz" target="_blank"#CMCC-IPv6_CMLiu_496
+                    rel="noopener noreferrer">#CMCC-IPv6_CMLiu_497
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_498
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"#CMCC-IPv6_CMLiu_499
+                        aria-hidden="true">#CMCC-IPv6_CMLiu_500
+                        <path d="M12 20V10"></path>#CMCC-IPv6_CMLiu_501
+                        <path d="M18 20V4"></path>#CMCC-IPv6_CMLiu_502
+                        <path d="M6 20v-4"></path>#CMCC-IPv6_CMLiu_503
+                    </svg>#CMCC-IPv6_CMLiu_504
+                    <span class="resource-text">#CMCC-IPv6_CMLiu_505
+                        <span class="resource-name">ip.164746.xyz</span>#CMCC-IPv6_CMLiu_506
+                        <span class="resource-desc">Cloudflare 优选 IP 汇总列表</span>#CMCC-IPv6_CMLiu_507
+                    </span>#CMCC-IPv6_CMLiu_508
+                </a>#CMCC-IPv6_CMLiu_509
+                <a class="resource-link" href="https://stock.hostmonit.com/CloudFlareYes" target="_blank"#CMCC-IPv6_CMLiu_510
+                    rel="noopener noreferrer">#CMCC-IPv6_CMLiu_511
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_512
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"#CMCC-IPv6_CMLiu_513
+                        aria-hidden="true">#CMCC-IPv6_CMLiu_514
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>#CMCC-IPv6_CMLiu_515
+                    </svg>#CMCC-IPv6_CMLiu_516
+                    <span class="resource-text">#CMCC-IPv6_CMLiu_517
+                        <span class="resource-name">stock.hostmonit.com</span>#CMCC-IPv6_CMLiu_518
+                        <span class="resource-desc">查看三网优选 IP 延迟丢包与机房明细</span>#CMCC-IPv6_CMLiu_519
+                    </span>#CMCC-IPv6_CMLiu_520
+                </a>#CMCC-IPv6_CMLiu_521
+                <a class="resource-link" href="https://v2rayssr.com/cfip/" target="_blank" rel="noopener noreferrer">#CMCC-IPv6_CMLiu_522
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"#CMCC-IPv6_CMLiu_523
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"#CMCC-IPv6_CMLiu_524
+                        aria-hidden="true">#CMCC-IPv6_CMLiu_525
+                        <line x1="8" y1="6" x2="21" y2="6"></line>#CMCC-IPv6_CMLiu_526
+                        <line x1="8" y1="12" x2="21" y2="12"></line>#CMCC-IPv6_CMLiu_527
+                        <line x1="8" y1="18" x2="21" y2="18"></line>#CMCC-IPv6_CMLiu_528
+                        <line x1="3" y1="6" x2="3.01" y2="6"></line>#CMCC-IPv6_CMLiu_529
+                        <line x1="3" y1="12" x2="3.01" y2="12"></line>#CMCC-IPv6_CMLiu_530
+                        <line x1="3" y1="18" x2="3.01" y2="18"></line>#CMCC-IPv6_CMLiu_531
+                    </svg>#CMCC-IPv6_CMLiu_532
+                    <span class="resource-text">#CMCC-IPv6_CMLiu_533
+                        <span class="resource-name">v2rayssr.com</span>#CMCC-IPv6_CMLiu_534
+                        <span class="resource-desc">汇总三网优选 IP 列表，每 10 分钟自动更新</span>#CMCC-IPv6_CMLiu_535
+                    </span>#CMCC-IPv6_CMLiu_536
+                </a>#CMCC-IPv6_CMLiu_537
+            </div>#CMCC-IPv6_CMLiu_538
+        </div>#CMCC-IPv6_CMLiu_539
+    </div>#CMCC-IPv6_CMLiu_540
+    </div>#CMCC-IPv6_CMLiu_541
+#CMCC-IPv6_CMLiu_542
+    <script>#CMCC-IPv6_CMLiu_543
+        /* 轻量页签路由：#CMCC-IPv6_CMLiu_544
+           页面切换仅控制 .page 容器显隐，script.js 的全部功能与 DOM 契约不受影响 */#CMCC-IPv6_CMLiu_545
+        (function () {#CMCC-IPv6_CMLiu_546
+            var PAGES = ['network', 'domains', 'splittunnel', 'api', 'resources'];#CMCC-IPv6_CMLiu_547
+            var pages = document.querySelectorAll('.page[data-page]');#CMCC-IPv6_CMLiu_548
+            var links = document.querySelectorAll('.nav-link[data-page]');#CMCC-IPv6_CMLiu_549
+#CMCC-IPv6_CMLiu_550
+            function currentRoute() {#CMCC-IPv6_CMLiu_551
+                var m = location.hash.match(/^#CMCC-IPv6_CMLiu_552
+                return (m && PAGES.indexOf(m[1]) !== -1) ? m[1] : 'network';#CMCC-IPv6_CMLiu_553
+            }#CMCC-IPv6_CMLiu_554
+#CMCC-IPv6_CMLiu_555
+            function show(route) {#CMCC-IPv6_CMLiu_556
+                pages.forEach(function (p) { p.hidden = p.getAttribute('data-page') !== route; });#CMCC-IPv6_CMLiu_557
+                links.forEach(function (l) {#CMCC-IPv6_CMLiu_558
+                    var active = l.getAttribute('data-page') === route;#CMCC-IPv6_CMLiu_559
+                    l.classList.toggle('active', active);#CMCC-IPv6_CMLiu_560
+                    if (active) { l.setAttribute('aria-current', 'page'); }#CMCC-IPv6_CMLiu_561
+                    else { l.removeAttribute('aria-current'); }#CMCC-IPv6_CMLiu_562
+                });#CMCC-IPv6_CMLiu_563
+                window.scrollTo(0, 0);#CMCC-IPv6_CMLiu_564
+                if (route === 'api' && typeof loadApiPreviews === 'function') { loadApiPreviews(); }#CMCC-IPv6_CMLiu_565
+                if (route === 'splittunnel' && typeof initSplitTunnel === 'function') { initSplitTunnel(); }#CMCC-IPv6_CMLiu_566
+            }#CMCC-IPv6_CMLiu_567
+#CMCC-IPv6_CMLiu_568
+            window.addEventListener('hashchange', function () { show(currentRoute()); });#CMCC-IPv6_CMLiu_569
+            show(currentRoute());#CMCC-IPv6_CMLiu_570
+#CMCC-IPv6_CMLiu_571
+            /* API 响应预览：懒加载（首次切到 API 页签才请求），请求本站相对路径（同源）；#CMCC-IPv6_CMLiu_572
+               显示与复制的完整地址由页面加载时的补全逻辑基于 location.origin 生成；#CMCC-IPv6_CMLiu_573
+               响应为纯文本，按 "IP#CMCC-IPv6_CMLiu_574
+               各段 textContent 拼接与原文完全一致，不改动任何内容 */#CMCC-IPv6_CMLiu_575
+            function renderApiPreview(body, text) {#CMCC-IPv6_CMLiu_576
+                body.textContent = '';#CMCC-IPv6_CMLiu_577
+                var lines = text.split('\n');#CMCC-IPv6_CMLiu_578
+                while (lines.length && lines[lines.length - 1].trim() === '') { lines.pop(); }#CMCC-IPv6_CMLiu_579
+                if (!lines.length) {#CMCC-IPv6_CMLiu_580
+                    body.textContent = '（接口返回空内容）';#CMCC-IPv6_CMLiu_581
+                    return;#CMCC-IPv6_CMLiu_582
+                }#CMCC-IPv6_CMLiu_583
+                lines.forEach(function (line) {#CMCC-IPv6_CMLiu_584
+                    if (line.trim() === '') { return; }#CMCC-IPv6_CMLiu_585
+                    var row = document.createElement('div');#CMCC-IPv6_CMLiu_586
+                    row.className = 'api-preview-row';#CMCC-IPv6_CMLiu_587
+                    var i = line.indexOf('#CMCC-IPv6_CMLiu_588
+                    if (i > -1) {#CMCC-IPv6_CMLiu_589
+                        var ip = document.createElement('span');#CMCC-IPv6_CMLiu_590
+                        ip.className = 'api-preview-ip';#CMCC-IPv6_CMLiu_591
+                        ip.textContent = line.slice(0, i);#CMCC-IPv6_CMLiu_592
+                        var sep = document.createElement('span');#CMCC-IPv6_CMLiu_593
+                        sep.className = 'api-preview-sep';#CMCC-IPv6_CMLiu_594
+                        sep.textContent = '#CMCC-IPv6_CMLiu_595
+                        var remark = document.createElement('span');#CMCC-IPv6_CMLiu_596
+                        remark.className = 'api-preview-remark';#CMCC-IPv6_CMLiu_597
+                        remark.textContent = line.slice(i + 1);#CMCC-IPv6_CMLiu_598
+                        row.appendChild(ip);#CMCC-IPv6_CMLiu_599
+                        row.appendChild(sep);#CMCC-IPv6_CMLiu_600
+                        row.appendChild(remark);#CMCC-IPv6_CMLiu_601
+                    } else {#CMCC-IPv6_CMLiu_602
+                        var only = document.createElement('span');#CMCC-IPv6_CMLiu_603
+                        only.className = 'api-preview-ip';#CMCC-IPv6_CMLiu_604
+                        only.textContent = line;#CMCC-IPv6_CMLiu_605
+                        row.appendChild(only);#CMCC-IPv6_CMLiu_606
+                    }#CMCC-IPv6_CMLiu_607
+                    body.appendChild(row);#CMCC-IPv6_CMLiu_608
+                });#CMCC-IPv6_CMLiu_609
+            }#CMCC-IPv6_CMLiu_610
+#CMCC-IPv6_CMLiu_611
+            function loadApiPreviews() {#CMCC-IPv6_CMLiu_612
+                document.querySelectorAll('.api-preview[data-api]').forEach(function (box) {#CMCC-IPv6_CMLiu_613
+                    if (box.getAttribute('data-loaded') === '1') { return; }#CMCC-IPv6_CMLiu_614
+                    box.setAttribute('data-loaded', '1');#CMCC-IPv6_CMLiu_615
+                    var body = box.querySelector('.api-preview-body');#CMCC-IPv6_CMLiu_616
+                    var btn = box.querySelector('.api-refresh-btn');#CMCC-IPv6_CMLiu_617
+                    body.innerHTML = '<span class="api-preview-loading">加载中…</span>';#CMCC-IPv6_CMLiu_618
+                    body.classList.remove('api-preview-error');#CMCC-IPv6_CMLiu_619
+                    if (btn) { btn.disabled = true; }#CMCC-IPv6_CMLiu_620
+                    var finish = function () { if (btn) { btn.disabled = false; } };#CMCC-IPv6_CMLiu_621
+                    var ctrl = ('AbortController' in window) ? new AbortController() : null;#CMCC-IPv6_CMLiu_622
+                    var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, 10000) : null;#CMCC-IPv6_CMLiu_623
+                    fetch(box.getAttribute('data-api'), ctrl ? { signal: ctrl.signal } : undefined)#CMCC-IPv6_CMLiu_624
+                        .then(function (r) {#CMCC-IPv6_CMLiu_625
+                            if (!r.ok) { throw new Error('HTTP ' + r.status); }#CMCC-IPv6_CMLiu_626
+                            return r.text();#CMCC-IPv6_CMLiu_627
+                        })#CMCC-IPv6_CMLiu_628
+                        .then(function (text) { renderApiPreview(body, text); })#CMCC-IPv6_CMLiu_629
+                        .catch(function (err) {#CMCC-IPv6_CMLiu_630
+                            var why = (err && err.name === 'AbortError') ? '请求超时'#CMCC-IPv6_CMLiu_631
+                                : (err && err.message) ? err.message : '网络错误';#CMCC-IPv6_CMLiu_632
+                            body.textContent = '⚠️ 预览获取失败：' + why + '（点击「刷新」重试）';#CMCC-IPv6_CMLiu_633
+                            body.classList.add('api-preview-error');#CMCC-IPv6_CMLiu_634
+                        })#CMCC-IPv6_CMLiu_635
+                        .then(finish, finish);#CMCC-IPv6_CMLiu_636
+                });#CMCC-IPv6_CMLiu_637
+            }#CMCC-IPv6_CMLiu_638
+#CMCC-IPv6_CMLiu_639
+            document.querySelectorAll('.api-preview .api-refresh-btn').forEach(function (btn) {#CMCC-IPv6_CMLiu_640
+                btn.addEventListener('click', function () {#CMCC-IPv6_CMLiu_641
+                    var box = btn.closest('.api-preview');#CMCC-IPv6_CMLiu_642
+                    if (box) {#CMCC-IPv6_CMLiu_643
+                        box.removeAttribute('data-loaded');#CMCC-IPv6_CMLiu_644
+                        loadApiPreviews();#CMCC-IPv6_CMLiu_645
+                    }#CMCC-IPv6_CMLiu_646
+                });#CMCC-IPv6_CMLiu_647
+            });#CMCC-IPv6_CMLiu_648
+#CMCC-IPv6_CMLiu_649
+            /* API 地址补全：页面加载时基于当前访问域名（location.origin）把相对路径补全为#CMCC-IPv6_CMLiu_650
+               完整 URL，用于显示与复制；data-api 保持相对路径不变（同源 fetch 等价）。#CMCC-IPv6_CMLiu_651
+               注意：本脚本在 script.js 之前执行，copyDomain 尚未定义，故只能延迟到点击时调用 */#CMCC-IPv6_CMLiu_652
+            if (location.protocol !== 'file:') {#CMCC-IPv6_CMLiu_653
+                document.querySelectorAll('.api-item').forEach(function (item) {#CMCC-IPv6_CMLiu_654
+                    var preview = item.querySelector('.api-preview[data-api]');#CMCC-IPv6_CMLiu_655
+                    if (!preview) { return; }#CMCC-IPv6_CMLiu_656
+                    var path = preview.getAttribute('data-api');#CMCC-IPv6_CMLiu_657
+                    var abs;#CMCC-IPv6_CMLiu_658
+                    try {#CMCC-IPv6_CMLiu_659
+                        abs = new URL(path, location.origin).href;#CMCC-IPv6_CMLiu_660
+                    } catch (err) {#CMCC-IPv6_CMLiu_661
+                        return; // file:// 无访问域名（Chrome 下 origin 为 "file://"）或其它异常 origin 时，直接跳过补全，保留 HTML 中的相对路径作为降级#CMCC-IPv6_CMLiu_662
+                    }#CMCC-IPv6_CMLiu_663
+                    var code = item.querySelector('.api-url');#CMCC-IPv6_CMLiu_664
+                    if (code) { code.textContent = abs; }#CMCC-IPv6_CMLiu_665
+                    var copyBtn = item.querySelector('.copy-btn-sm');#CMCC-IPv6_CMLiu_666
+                    if (copyBtn) {#CMCC-IPv6_CMLiu_667
+                        copyBtn.removeAttribute('onclick');#CMCC-IPv6_CMLiu_668
+                        copyBtn.addEventListener('click', function () { copyDomain(abs); });#CMCC-IPv6_CMLiu_669
+                    }#CMCC-IPv6_CMLiu_670
+                });#CMCC-IPv6_CMLiu_671
+            }#CMCC-IPv6_CMLiu_672
+        })();#CMCC-IPv6_CMLiu_673
+    </script>#CMCC-IPv6_CMLiu_674
+#CMCC-IPv6_CMLiu_675
+    <div class="footer">#CMCC-IPv6_CMLiu_676
+        <p>© 2025 - 2026 CloudFlare优选域名汇总 | 今日访问人数: <span id="visit-count">···</span> | 本站内容仅供参考，提供维护: <a#CMCC-IPv6_CMLiu_677
+                href='https://t.me/CMLiussss'>CMLiussss</a> </p>#CMCC-IPv6_CMLiu_678
+        <p class="footer-note">Cloudflare 在中国大陆暂无边缘 CDN 节点。所以本站汇总优选域名、落地 IP 与延迟测试数据，仅供参考与学习；使用请遵守当地法律法规并自行承担风险。</p>#CMCC-IPv6_CMLiu_679
+    </div>#CMCC-IPv6_CMLiu_680
+#CMCC-IPv6_CMLiu_681
+    <script src="script.js"></script>#CMCC-IPv6_CMLiu_682
+<!-- Cloudflare Pages Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "983a78553a844af287b39c2aa1b146eb"}'></script><!-- Cloudflare Pages Analytics --></body>#CMCC-IPv6_CMLiu_683
+#CMCC-IPv6_CMLiu_684
+</html>#CMCC-IPv6_CMLiu_685
+104.18.40.77#CMCC-IPv4_VPS789_1
+172.64.147.110#CMCC-IPv4_VPS789_2
+104.18.35.200#CMCC-IPv4_VPS789_3
+172.64.156.99#CMCC-IPv4_VPS789_4
+104.17.154.108#CMCC-IPv4_VPS789_5
+172.67.247.67#CMCC-IPv4_CFYes_1
+172.67.80.92#CMCC-IPv4_CFYes_2
+198.41.208.158#CMCC-IPv4_CFYes_3
+190.93.244.153#CMCC-IPv4_CFYes_4
+198.41.208.52#CMCC-IPv4_CFYes_5
+[2606:4700:9a6b:d3cb:a1c8:70e9:6f8d:aeac]#CMCC-IPv6_CFYes_1
+[2606:4700:9c64:ac4:45f:78b4:5c43:a961]#CMCC-IPv6_CFYes_2
+[2606:4700:f:dec8:7ff1:44e3:34d8:9057]#CMCC-IPv6_CFYes_3
+[2606:4700:9c64:87c0:b592:2490:b3ff:733f]#CMCC-IPv6_CFYes_4
+[2606:4700:4403:5c64:95a6:9adb:df7c:de36]#CMCC-IPv6_CFYes_5
+104.18.26.162#CMCC-IPv4_WeTest_1
+104.17.123.182#CMCC-IPv4_WeTest_2
+104.17.151.184#CMCC-IPv4_WeTest_3
+172.66.207.236#CMCC-IPv4_WeTest_4
+104.21.85.113#CMCC-IPv4_WeTest_5
+[2606:4700:8397::3e9c:f50]#CMCC-IPv6_WeTest_1
+[2606:4700:9c64::9a85:c369]#CMCC-IPv6_WeTest_2
+[2606:4700:91bb::a7e2:6b10]#CMCC-IPv6_WeTest_3
+[2606:4700:9c67::8328:58fe]#CMCC-IPv6_WeTest_4
+[2606:4700:9a61::f297:d5c]#CMCC-IPv6_WeTest_5
